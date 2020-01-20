@@ -183,7 +183,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-m", desc)
 			},
 			expectedErr: "",
-			output:      []string{},
+			output:      []string{"math.go"},
 		},
 		{
 			desc: "Delete old file main.go",
