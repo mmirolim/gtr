@@ -11,6 +11,8 @@ import (
 
 // test data
 var maingo = []byte(`
+package main
+
 var a, b int = 10, 20
 
 func main() {
@@ -23,6 +25,8 @@ func add(a, b int) {
 `)
 
 var mathgo = []byte(`
+package main
+
 const PI = 3.14
 func sub(a, b) int {
 	return a - b
@@ -37,6 +41,8 @@ func min(a, b int) int {
 `)
 
 var mathgo_add_func = []byte(`
+package main
+
 const PI = 3.14
 func sub(a, b) int {
 	return a - b
@@ -58,6 +64,8 @@ func max(a, b int) int {
 `)
 
 var mathgo_update_min_func = []byte(`
+package main
+
 const PI = 3.14
 
 func sub(a, b) int {
@@ -81,7 +89,9 @@ func max(a, b int) int {
 }
 `)
 
-var mathgo_update_pkg_lvl_var_add_comment = []byte(`
+var mathgo_update_pkg_lvl_var_add_comment_change_func = []byte(`
+package main
+
 const PI = 3.14159
 
 // sub func subtracts b from a
@@ -98,10 +108,39 @@ func min(a, b int) int {
 }
 
 func max(a, b int) int {
-	if min(a, b) == a {
+	if b > a {
 		return b
 	}
 	return a
+}
+`)
+
+var math_test_go = []byte(`
+package main
+
+func TestMin(t *testing.T) {
+	res := min(10, 20)
+	if res != 10 {
+		t.Errorf("expected 10, got %v", res)
+	}
+}
+`)
+
+var math_test_go_test_max = []byte(`
+package main
+
+func TestMin(t *testing.T) {
+	res := min(10, 20)
+	if res != 10 {
+		t.Errorf("expected 10, got %v", res)
+	}
+}
+
+func TestMax(t *testing.T) {
+	res := max(10, 20)
+	if res != 20 {
+		t.Errorf("expected 20, got %v", res)
+	}
 }
 `)
 
@@ -171,19 +210,27 @@ func TestGetDiff(t *testing.T) {
 		expectedErr     string
 	}{
 		{
-			desc: "Add new file, math.go",
+			desc: "Add new file, math.go and math_test.go",
 			setup: func(desc string) error {
-				return ioutil.WriteFile(fileFullName("math.go"), mathgo, 0600)
+				err := ioutil.WriteFile(fileFullName("math.go"), mathgo, 0600)
+				if err != nil {
+					return err
+				}
+				return ioutil.WriteFile(fileFullName("math_test.go"), math_test_go, 0600)
 			},
 			tearDown: func(desc string) error {
 				err := gitCmdRun("add", "math.go")
 				if err != nil {
 					return err
 				}
+				err = gitCmdRun("add", "math_test.go")
+				if err != nil {
+					return err
+				}
 				return gitCmdRun("commit", "-m", desc)
 			},
 			expectedErr: "",
-			output:      []string{"math.go"},
+			output:      []string{"math.go", "math_test.go"},
 		},
 		{
 			desc: "Delete old file main.go",
@@ -194,18 +241,22 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []string{"main.go -1,10 +0,0"},
+			output:      []string{"main.go -1,12 +0,0"},
 		},
 		{
-			desc: "Update file math.go with new func max",
+			desc: "Update file math.go with new func max with test",
 			setup: func(desc string) error {
-				return ioutil.WriteFile(fileFullName("math.go"), mathgo_add_func, 0600)
+				err := ioutil.WriteFile(fileFullName("math.go"), mathgo_add_func, 0600)
+				if err != nil {
+					return err
+				}
+				return ioutil.WriteFile(fileFullName("math_test.go"), math_test_go_test_max, 0600)
 			},
 			tearDown: func(desc string) error {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []string{"math.go -10,3 +10,10"},
+			output:      []string{"math.go -12,3 +12,10", "math_test.go -7,3 +7,10"},
 		},
 		{
 			desc: "Update file math.go, update func min",
@@ -216,18 +267,18 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []string{"math.go -1,5 +1,6"},
+			output:      []string{"math.go -2,6 +2,7"},
 		},
 		{
 			desc: "Update file math.go, change package level const and add comment",
 			setup: func(desc string) error {
-				return ioutil.WriteFile(fileFullName("math.go"), mathgo_update_pkg_lvl_var_add_comment, 0600)
+				return ioutil.WriteFile(fileFullName("math.go"), mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
 			},
 			tearDown: func(desc string) error {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []string{"math.go -1,6 +1,7"},
+			output:      []string{"math.go -1,8 +1,9"},
 		},
 	}
 

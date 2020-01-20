@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"os/exec"
 	"regexp"
 	"sync"
@@ -23,8 +22,6 @@ func GetDiff(workdir string) ([]string, error) {
 	gitCmd.Stdout = &gitOut
 	err := gitCmd.Run()
 	if err != nil {
-		fmt.Printf("GetDiff err %+v\n", err) // output for debug
-
 		return nil, err
 	}
 	matches := reFnameUntrackedFiles.FindAllString(gitOut.String(), -1)
