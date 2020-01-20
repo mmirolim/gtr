@@ -13,7 +13,8 @@ import (
 	dmp "github.com/sergi/go-diff/diffmatchpatch"
 )
 
-var reFnameAndLinesInDiff = regexp.MustCompile(`diff --git a/(?P<fname>.+\.go) (?:[^@]+|\n)+@@ (?P<old>-\d+,\d+) (?P<new>\+\d+,\d+) @@`)
+// get file name and patch lines in @@ -1 +2 @@ and @@ -1,2 +1,10 @@ format
+var reFnameAndLinesInDiff = regexp.MustCompile(`diff --git a/(?P<fname>.+\.go) (?:[^@]+|\n)+@@ (?P<old>-\d+(?:,\d+)?) (?P<new>\+\d+(?:,\d+)?) @@`)
 var reFnameUntrackedFiles = regexp.MustCompile(`\?\? (?P<fname>.+\.go)`)
 
 var mu sync.Mutex
