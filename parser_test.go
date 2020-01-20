@@ -206,7 +206,7 @@ func TestGetDiff(t *testing.T) {
 	cases := []struct {
 		desc            string
 		setup, tearDown func(desc string) error
-		output          []string
+		output          []Change
 		expectedErr     string
 	}{
 		{
@@ -230,7 +230,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-m", desc)
 			},
 			expectedErr: "",
-			output:      []string{"math.go", "math_test.go"},
+			output:      []Change{{"math.go", 0, 0}, {"math_test.go", 0, 0}},
 		},
 		{
 			desc: "Delete old file main.go",
@@ -241,7 +241,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []string{"main.go -1,12 +0,0"},
+			output:      []Change{{"main.go", 0, 0}},
 		},
 		{
 			desc: "Update file math.go with new func max with test",
@@ -256,7 +256,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []string{"math.go -12,3 +12,10", "math_test.go -7,3 +7,10"},
+			output:      []Change{{"math.go", 12, 10}, {"math_test.go", 7, 10}},
 		},
 		{
 			desc: "Update file math.go, update func min",
@@ -267,7 +267,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []string{"math.go -2,6 +2,7"},
+			output:      []Change{{"math.go", 2, 7}},
 		},
 		{
 			desc: "Update file math.go, change package level const and add comment",
@@ -278,7 +278,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []string{"math.go -1,8 +1,9"},
+			output:      []Change{{"math.go", 1, 9}},
 		},
 	}
 
@@ -300,12 +300,12 @@ func TestGetDiff(t *testing.T) {
 			t.FailNow()
 		}
 		if errOut != tc.expectedErr {
-			t.Errorf("case [%d] %s\nexpected error %v, got %v", i, tc.desc, tc.expectedErr, errOut)
+			t.Errorf("case [%d] %s\nexpected error %v\ngot %v", i, tc.desc, tc.expectedErr, errOut)
 			continue
 		}
 
 		if !reflect.DeepEqual(tc.output, output) {
-			t.Errorf("case [%d] %s\nexpected %s got %s", i, tc.desc, tc.output, output)
+			t.Errorf("case [%d] %s\nexpected %#v\ngot %#v", i, tc.desc, tc.output, output)
 		}
 	}
 }
