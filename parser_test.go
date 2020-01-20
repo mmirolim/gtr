@@ -144,6 +144,38 @@ func TestMax(t *testing.T) {
 }
 `)
 
+var geogo = []byte(`
+package main
+
+func Perimeter(d, h int) int {
+	return 2*d + 2*h
+}
+`)
+
+var geo_add_area = []byte(`
+package main
+
+func Perimeter(d, h int) int {
+	return 2*d + 2*h
+}
+
+func Area(d, h int) int {
+	return d * h
+}
+`)
+
+var geo_area_func_rename = []byte(`
+package main
+
+func Perimeter(d, h int) int {
+	return 2*d + 2*h
+}
+
+func AreaRect(d, h int) int {
+	return d * h
+}
+`)
+
 func TestGetDiff(t *testing.T) {
 	const testGetDiff = "test_get_diff"
 	tempDir := os.TempDir()
@@ -158,9 +190,7 @@ func TestGetDiff(t *testing.T) {
 		gitCmd := exec.Command("git", "-C", newTestDir)
 		gitCmd.Stdout = &gitOut
 		gitCmd.Args = append(gitCmd.Args, args...)
-		//fmt.Printf("run %+v\n", gitCmd.Args) // output for debug
 		err := gitCmd.Run()
-		//fmt.Printf("git output\n%+v\n", gitOut.String()) // output for debug
 		if err != nil {
 			return err
 		}
@@ -210,9 +240,13 @@ func TestGetDiff(t *testing.T) {
 		expectedErr     string
 	}{
 		{
-			desc: "Add new file, math.go and math_test.go",
+			desc: "Add new file, math.go, geo.go, math_test.go",
 			setup: func(desc string) error {
 				err := ioutil.WriteFile(fileFullName("math.go"), mathgo, 0600)
+				if err != nil {
+					return err
+				}
+				err = ioutil.WriteFile(fileFullName("geo.go"), geogo, 0600)
 				if err != nil {
 					return err
 				}
@@ -230,7 +264,10 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-m", desc)
 			},
 			expectedErr: "",
-			output:      []Change{{"math.go", 0, 0}, {"math_test.go", 0, 0}},
+			output: []Change{
+				{"geo.go", 0, 0},
+				{"math.go", 0, 0},
+				{"math_test.go", 0, 0}},
 		},
 		{
 			desc: "Delete old file main.go",
@@ -242,6 +279,17 @@ func TestGetDiff(t *testing.T) {
 			},
 			expectedErr: "",
 			output:      []Change{{"main.go", 0, 0}},
+		},
+		{
+			desc: "Change untracked file geo.go, add func Area",
+			setup: func(desc string) error {
+				return ioutil.WriteFile(fileFullName("geo.go"), geo_add_area, 0600)
+			},
+			tearDown: func(desc string) error {
+				return nil
+			},
+			expectedErr: "",
+			output:      []Change{{"geo.go", 1, 10}},
 		},
 		{
 			desc: "Update file math.go with new func max with test",
@@ -279,6 +327,17 @@ func TestGetDiff(t *testing.T) {
 			},
 			expectedErr: "",
 			output:      []Change{{"math.go", 1, 9}},
+		},
+		{
+			desc: "Change func name in untracked file geo.go",
+			setup: func(desc string) error {
+				return ioutil.WriteFile(fileFullName("geo.go"), geo_area_func_rename, 0600)
+			},
+			tearDown: func(desc string) error {
+				return nil
+			},
+			expectedErr: "",
+			output:      []Change{{"geo.go", 4, 7}},
 		},
 	}
 

@@ -3,18 +3,21 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+
+	dmp "github.com/sergi/go-diff/diffmatchpatch"
 )
 
 var reFnameAndLinesInDiff = regexp.MustCompile(`diff --git a/(?P<fname>.+\.go) (?:[^@]+|\n)+@@ (?P<old>-\d+,\d+) (?P<new>\+\d+,\d+) @@`)
 var reFnameUntrackedFiles = regexp.MustCompile(`\?\? (?P<fname>.+\.go)`)
 
 var mu sync.Mutex
-var untrackedFiles = map[string]string{}
+var untrackedFilesMap = map[string][]byte{}
 
 type Change struct {
 	fpath string
@@ -37,9 +40,12 @@ func newChange(diff string) (Change, error) {
 		if err != nil {
 			return change, nil
 		}
-		change.count, err = strconv.Atoi(lines[1])
-		if err != nil {
-			return change, nil
+		// -1 +1 changes in same line
+		if len(lines) > 1 {
+			change.count, err = strconv.Atoi(lines[1])
+			if err != nil {
+				return change, nil
+			}
 		}
 	} else if nparts == 1 {
 		change.fpath = parts[0]
@@ -49,10 +55,29 @@ func newChange(diff string) (Change, error) {
 	return change, nil
 }
 
+func diff(fname string, prevdata, data []byte) ([]Change, error) {
+	patcher := dmp.New()
+	t1, t2, _ := patcher.DiffLinesToChars(string(prevdata), string(data))
+	diffs := patcher.DiffMain(t1, t2, true)
+	patches := patcher.PatchMake(diffs)
+	var changes []Change
+	for i := range patches {
+		start := patches[i].Start2
+		if patches[i].Length2 > 0 {
+			start++
+		}
+		changes = append(changes, Change{fname, start, patches[i].Length2})
+	}
+
+	return changes, nil
+}
+
 // TODO comments
+// TODO maybe use existing git-diff parsers for unified format
 func GetDiff(workdir string) ([]Change, error) {
 	// TODO store hashes of new files and return untracked new files to run
 	var gitOut bytes.Buffer
+	var results []Change
 	// get not yet commited go files
 	gitCmd := exec.Command("git", "-C", workdir, "status", "--short")
 	gitCmd.Stdout = &gitOut
@@ -61,17 +86,42 @@ func GetDiff(workdir string) ([]Change, error) {
 		return nil, err
 	}
 	matches := reFnameUntrackedFiles.FindAllString(gitOut.String(), -1)
-	results := make([]Change, len(matches))
-
+	untrackedFiles := make([]string, len(matches))
 	for i := range matches {
-		change, err := newChange(reFnameUntrackedFiles.ReplaceAllString(matches[i], "${fname}"))
-		if err != nil {
-			return nil, err
-		}
-		results[i] = change
+		untrackedFiles[i] = reFnameUntrackedFiles.ReplaceAllString(matches[i], "${fname}")
 	}
 	gitOut.Reset()
+	// update untracked files changes
+	mu.Lock()
+	var data []byte
+	// TODO previously untracked files after commit should be removed from map
+	for _, name := range untrackedFiles {
+		// new file store
+		data, err = ioutil.ReadFile(workdir + "/" + name)
+		if err != nil {
+			err = fmt.Errorf("reading file %s error %v", name, err)
+			break
+		}
+		prevdata, ok := untrackedFilesMap[name]
+		if ok {
+			changes, err := diff(name, prevdata, data)
+			if err != nil {
+				err = fmt.Errorf("diff err %+v", err)
+				break
+			}
+			results = append(results, changes...)
 
+		} else {
+			// new entry
+			results = append(results, Change{name, 0, 0})
+		}
+		// update entry
+		untrackedFilesMap[name] = data
+	}
+	mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
 	// get changes in go files
 	// Disallow external diff drivers.
 	gitCmd = exec.Command("git", "-C", workdir, "diff", "--no-ext-diff")
@@ -88,6 +138,5 @@ func GetDiff(workdir string) ([]Change, error) {
 		}
 		results = append(results, change)
 	}
-
 	return results, nil
 }
