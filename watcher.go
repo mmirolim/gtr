@@ -76,6 +76,15 @@ LOOP:
 			}
 			// TODO improve message
 			log.Println("File changed:", e.Name)
+			if strings.HasSuffix(e.Name, "_test.go") {
+				err := parseTestFile(e.Name)
+				if err != nil {
+					fmt.Printf("parseTestFile error %+v\n", err) // output for debug
+				}
+			} else {
+				fmt.Printf("%+v\n", "TODO parse go file") // output for debug
+
+			}
 			// send signal to stop previous command
 			select {
 			case w.stop <- true:
@@ -149,6 +158,34 @@ func (w *Watcher) watchFiles() {
 				if strings.HasPrefix(filepath.Base(path), ".") || strings.HasPrefix(path, "vendor") {
 					return filepath.SkipDir
 				}
+			}
+			// TODO refactor
+			// index all test files
+			fmt.Printf("Path: %s fileName %s\n", path, info.Name()) // output for debug
+			dir, err := os.Open(info.Name())
+			if err == nil {
+				fileInfos, err := dir.Readdir(-1)
+				if err == nil {
+					// close file
+					dir.Close()
+					for _, f := range fileInfos {
+						if strings.HasSuffix(f.Name(), "_test.go") {
+							fname := filepath.Join(path, f.Name())
+							fmt.Printf("parseTestFile %+v\n", fname) // output for debug
+
+							err = parseTestFile(fname)
+							if err != nil {
+								fmt.Printf("parseTestFile unexpected error %+v\n", err) // output for debug
+							}
+						}
+					}
+				} else {
+					fmt.Printf("Readdir unexpected error %+v\n", err) // output for debug
+
+				}
+
+			} else {
+				fmt.Printf("open %s unexpected error %+v\n", filepath.Join(path, info.Name()), err) // output for debug
 			}
 			// create new watcher
 			watcher, err := fsnotify.NewWatcher()

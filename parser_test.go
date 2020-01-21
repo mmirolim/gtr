@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"io/ioutil"
 	"os"
@@ -485,6 +486,7 @@ func TestFnFullName(t *testing.T) {
 			err: "unexpected value *ast.IndexExpr",
 		},
 	}
+
 	var errOut string
 	for i, tc := range cases {
 		errOut = ""
@@ -500,4 +502,44 @@ func TestFnFullName(t *testing.T) {
 			t.Errorf("case [%d]\nexpected %#v\ngot %#v", i, tc.output, name)
 		}
 	}
+}
+
+var gofile = []byte(`
+package main
+
+import "github.com/pkg"
+
+type T1 struct{
+     a int
+}
+
+func (t *T1) M1(a, b int) int {
+	z := a + b
+	a += b
+	return z + a + b
+}
+
+func (t T1) M2(a, b int) int {
+	return b - a
+}
+
+func F2() int {
+	return pkg.F()
+}
+
+func Perimeter(d, h int) int {
+	return 2*d + 2*h
+}
+
+func Area(d, h int) int {
+	return d * h
+}
+`)
+
+func TestGetFileBlocks(t *testing.T) {
+	entities, err := getFileBlocks(gofile)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	fmt.Printf("%# v\n", pretty.Formatter(entities)) // output for debug
 }

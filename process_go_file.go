@@ -8,45 +8,12 @@ import (
 	"io/ioutil"
 	"strings"
 	"sync"
-
-	"github.com/kr/pretty"
 )
 
 type Entity struct {
 	typ  string
 	name string
 }
-
-/*
-Scope: &ast.Scope{
-        Outer:   (*ast.Scope)(nil),
-        Objects: {
-            "TestMin": &ast.Object{
-                Kind: 5,
-                Name: "TestMin",
-                Decl: &ast.FuncDecl{(CYCLIC REFERENCE)},
-                Data: nil,
-                Type: nil,
-            },
-            "TestMax": &ast.Object{
-                Kind: 5,
-                Name: "TestMax",
-                Decl: &ast.FuncDecl{(CYCLIC REFERENCE)},
-                Data: nil,
-                Type: nil,
-            },
-        },
-    },
-    Imports: {
-        &ast.ImportSpec{
-            Doc:     (*ast.CommentGroup)(nil),
-            Name:    (*ast.Ident)(nil),
-            Path:    &ast.BasicLit{ValuePos:29, Kind:9, Value:"\"github.com/name/pkga\""},
-            Comment: (*ast.CommentGroup)(nil),
-            EndPos:  0,
-        },
-    },
-*/
 
 // TODO handle rename imports
 // TODO handle methods
@@ -100,7 +67,7 @@ func parseTestFile(fname string) error {
 	}
 	tmu.Lock()
 	testFiles[fname] = dic
-	fmt.Printf("TestFilesParse\n%# v\n", pretty.Formatter(testFiles)) // output for debug
+	//fmt.Printf("TestFilesParse\n%# v\n", pretty.Formatter(testFiles)) // output for debug
 	tmu.Unlock()
 	indexFuncsInTestFile(fname)
 	return nil
@@ -135,9 +102,16 @@ func indexFuncsInTestFile(fname string) {
 	}
 	// replace index for test file for funcs
 	for funName := range index {
-		funcToTests[funName][fname] = index[funName]
+		_, ok := funcToTests[funName]
+		if ok {
+			funcToTests[funName][fname] = index[funName]
+		} else {
+			funcToTests[funName] = map[string]map[string]bool{
+				fname: index[funName],
+			}
+		}
 	}
-	fmt.Printf("indexFuncsInTestFile\n%# v\n", pretty.Formatter(funcToTests)) // output for debug
+	//fmt.Printf("indexFuncsInTestFile\n%# v\n", pretty.Formatter(funcToTests)) // output for debug
 }
 
 func getTestedFuncs(testFile []byte) (map[string][]Entity, error) {
@@ -145,20 +119,17 @@ func getTestedFuncs(testFile []byte) (map[string][]Entity, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "", testFile, parser.ParseComments)
 	if err != nil {
-		return dic, nil
+		return dic, err
 	}
-	// fmt.Printf("%# v\n", pretty.Formatter(f))
-	packageName := f.Name
-	fmt.Printf("PACKAGE_NAME: %+v\n", packageName) // output for debug
+
+	// TODO need to parse each FuncDecl and Typespec
+	// not everything in scope
 	for k, v := range f.Scope.Objects {
 		funcDecl, ok := v.Decl.(*ast.FuncDecl)
 		if !ok || !strings.HasPrefix(k, "Test") {
 			continue
 		}
 		var entities []Entity
-		posStart := fset.Position(funcDecl.Body.Lbrace)
-		posEnd := fset.Position(funcDecl.Body.Rbrace)
-		fmt.Printf("Fn Name %v Body start %d end %d\n", k, posStart.Line, posEnd.Line) // output for debug
 
 		// inspect only Test funcs
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
@@ -172,7 +143,6 @@ func getTestedFuncs(testFile []byte) (map[string][]Entity, error) {
 						typ:  "func",
 						name: fname,
 					})
-					fmt.Printf("CALL expr found %+v\n", fname) // output for debug
 				}
 			}
 			return true
@@ -181,4 +151,68 @@ func getTestedFuncs(testFile []byte) (map[string][]Entity, error) {
 	}
 
 	return dic, nil
+}
+
+type FileBlock struct {
+	typ, name  string
+	start, end int // lines [start, end] from 1
+}
+
+func getFileBlocks(file []byte) ([]FileBlock, error) {
+	var blocks []FileBlock
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "", file, parser.ParseComments)
+	if err != nil {
+		return blocks, err
+	}
+
+	for _, decl := range f.Decls {
+		var block FileBlock
+		switch d := decl.(type) {
+		case *ast.GenDecl:
+			for _, v := range d.Specs {
+				switch spec := v.(type) {
+				case *ast.ImportSpec:
+					// TODO handle
+				case *ast.TypeSpec:
+					block.name = spec.Name.Name
+					block.typ = "type"
+					// handle struct type
+					typ, ok := spec.Type.(*ast.StructType)
+					if ok {
+						block.start = fset.Position(typ.Fields.Opening).Line
+						block.end = fset.Position(typ.Fields.Closing).Line
+					} else {
+						continue
+					}
+				}
+			}
+		case *ast.FuncDecl:
+			fn := d
+			block.typ = "func"
+			block.name = fn.Name.Name
+			block.start = fset.Position(fn.Body.Lbrace).Line
+			block.end = fset.Position(fn.Body.Rbrace).Line
+			if fn.Recv != nil {
+				// method
+				block.typ = "method"
+				fld := fn.Recv.List[0]
+				switch v := fld.Type.(type) {
+				case *ast.Ident:
+					block.name = v.Name + "." + block.name
+				case *ast.StarExpr:
+					ident, ok := v.X.(*ast.Ident)
+					if ok {
+						block.name = ident.Name + "." + block.name
+					} else {
+						return nil, fmt.Errorf("unexpected ast type %T", v.X)
+					}
+				}
+			}
+		default:
+			continue
+		}
+		blocks = append(blocks, block)
+	}
+	return blocks, nil
 }
