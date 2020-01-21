@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"go/ast"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"reflect"
 	"testing"
+
+	"github.com/kr/pretty"
 )
 
 // test data
@@ -365,6 +368,136 @@ func TestGetDiff(t *testing.T) {
 
 		if !reflect.DeepEqual(tc.output, output) {
 			t.Errorf("case [%d] %s\nexpected %#v\ngot %#v", i, tc.desc, tc.output, output)
+		}
+	}
+}
+
+var testFile = []byte(`
+package main
+
+import (
+    pk "github.com/name/pkga"
+)
+
+func TestMin(t *testing.T) {
+	res := pk.TA.Min(10, 20)
+	if res != 10 {
+		t.Errorf("expected 10, got %v", res)
+	}
+}
+
+func TestMax(t *testing.T) {
+	res := max(10, 20)
+	if res != 20 {
+		t.Errorf("expected 20, got %v", res)
+	}
+	var m map[int]func()
+
+	m[0]()
+}
+`)
+
+func TestGetTestedFuncs(t *testing.T) {
+	expected := map[string][]Entity{
+		"TestMin": {
+			{typ: "func", name: "pk.TA.Min"},
+			{typ: "func", name: "t.Errorf"},
+		},
+		"TestMax": {
+			{typ: "func", name: "max"},
+			{typ: "func", name: "t.Errorf"},
+		},
+	}
+
+	dic, err := getTestedFuncs(testFile)
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+		return
+	}
+	diffs := pretty.Diff(expected, dic)
+	if len(diffs) > 0 {
+		t.Errorf("%# v", pretty.Formatter(diffs))
+	}
+}
+
+func TestFnFullName(t *testing.T) {
+	cases := []struct {
+		callExpr *ast.CallExpr
+		output   string
+		err      string
+	}{
+		{callExpr: &ast.CallExpr{
+			Fun: &ast.Ident{
+				NamePos: 213,
+				Name:    "max",
+				Obj:     nil,
+			}},
+			output: "max",
+		},
+		{callExpr: &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X: &ast.Ident{
+					NamePos: 133,
+					Name:    "t",
+					Obj:     nil,
+				},
+				Sel: &ast.Ident{
+					NamePos: 135,
+					Name:    "Errorf",
+					Obj:     nil,
+				},
+			}},
+			output: "t.Errorf",
+		},
+		{callExpr: &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X: &ast.SelectorExpr{
+					X: &ast.Ident{
+						NamePos: 95,
+						Name:    "pk",
+					},
+					Sel: &ast.Ident{
+						NamePos: 98,
+						Name:    "Type",
+					},
+				},
+				Sel: &ast.Ident{
+					NamePos: 103,
+					Name:    "Min",
+				},
+			}},
+			output: "pk.Type.Min",
+		},
+		{callExpr: &ast.CallExpr{
+			Fun: &ast.IndexExpr{
+				X: &ast.Ident{
+					NamePos: 307,
+					Name:    "m",
+					Obj: &ast.Object{
+						Kind: 4,
+						Name: "m",
+						Data: int(0),
+						Type: nil,
+					},
+				},
+			},
+		},
+			err: "unexpected value *ast.IndexExpr",
+		},
+	}
+	var errOut string
+	for i, tc := range cases {
+		errOut = ""
+		name, err := fnNameFromCallExpr(tc.callExpr)
+		if err != nil {
+			errOut = err.Error()
+		}
+		if errOut != tc.err {
+			t.Errorf("case [%d]\nexpected error %#v\ngot %#v", i, tc.err, errOut)
+			continue
+		}
+		if name != tc.output {
+			t.Errorf("case [%d]\nexpected %#v\ngot %#v", i, tc.output, name)
 		}
 	}
 }
