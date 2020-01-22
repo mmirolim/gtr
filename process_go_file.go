@@ -153,19 +153,80 @@ func getTestedFuncs(testFile []byte) (map[string][]Entity, error) {
 	return dic, nil
 }
 
+// returns map FileInfo by file name with effected blocks
+func processFileChanges() (map[string]FileInfo, error) {
+	changedBlocks := map[string]FileInfo{}
+	// get changes
+	changes, err := GetDiff(".")
+	if err != nil {
+		return nil, err
+	}
+	//fmt.Printf("Process changes\n%+v\n", changes) // output for debug
+	fileInfos := make(map[string]FileInfo)
+	// process all changes
+	for _, change := range changes {
+		info, ok := fileInfos[change.fpath]
+		if !ok {
+			data, err := ioutil.ReadFile(change.fpath)
+			if err != nil {
+				fmt.Printf("ReadFile %s error %+v\n", change.fpath, err) // output for debug
+
+				return nil, err
+			}
+			info, err = getFileInfo(change.fpath, data)
+			if err != nil {
+				fmt.Printf("getFileInfo %s error %+v\n", change.fpath, err) // output for debug
+				return nil, err
+			}
+			fileInfos[change.fpath] = info
+		}
+		//fmt.Printf("fpath %s %# v\n", change.fpath, pretty.Formatter(info)) // output for debug
+		changeInfo, ok := changedBlocks[change.fpath]
+		if !ok {
+			changeInfo.fname = info.fname
+			changeInfo.pkgName = info.pkgName
+		}
+
+		// expect blocks sorted by start line
+		for _, block := range info.blocks {
+			start := change.start
+			end := change.count + change.start
+			if end < block.start {
+				break
+			}
+			if (start >= block.start && start <= block.end) ||
+				(end >= block.start && end <= block.end) ||
+				(block.start >= start && block.end <= end) {
+				changeInfo.blocks = append(changeInfo.blocks, block)
+			}
+		}
+		if len(changeInfo.blocks) > 0 {
+			changedBlocks[change.fpath] = changeInfo
+		}
+
+	}
+	return changedBlocks, nil
+}
+
+type FileInfo struct {
+	fname, pkgName string
+	blocks         []FileBlock
+}
 type FileBlock struct {
 	typ, name  string
 	start, end int // lines [start, end] from 1
 }
 
-func getFileBlocks(file []byte) ([]FileBlock, error) {
+func getFileInfo(fname string, file []byte) (FileInfo, error) {
+	var fileInfo FileInfo
 	var blocks []FileBlock
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "", file, parser.ParseComments)
 	if err != nil {
-		return blocks, err
+		return fileInfo, err
 	}
-
+	fileInfo.pkgName = f.Name.Name
+	fileInfo.fname = fname
 	for _, decl := range f.Decls {
 		var block FileBlock
 		switch d := decl.(type) {
@@ -182,11 +243,10 @@ func getFileBlocks(file []byte) ([]FileBlock, error) {
 					if ok {
 						block.start = fset.Position(typ.Fields.Opening).Line
 						block.end = fset.Position(typ.Fields.Closing).Line
-					} else {
-						continue
 					}
 				}
 			}
+			continue
 		case *ast.FuncDecl:
 			fn := d
 			block.typ = "func"
@@ -205,7 +265,7 @@ func getFileBlocks(file []byte) ([]FileBlock, error) {
 					if ok {
 						block.name = ident.Name + "." + block.name
 					} else {
-						return nil, fmt.Errorf("unexpected ast type %T", v.X)
+						return fileInfo, fmt.Errorf("unexpected ast type %T", v.X)
 					}
 				}
 			}
@@ -214,5 +274,47 @@ func getFileBlocks(file []byte) ([]FileBlock, error) {
 		}
 		blocks = append(blocks, block)
 	}
-	return blocks, nil
+	fileInfo.blocks = blocks
+	return fileInfo, nil
+}
+
+func findTestsToRun(effectedBlocks map[string]FileInfo) ([]string, error) {
+	testsSet := map[string]struct{}{}
+
+	for fname, info := range effectedBlocks {
+		testFile := false
+		// test file
+		// TODO FileInfo match as test file or not
+		if strings.HasSuffix(fname, "_test.go") {
+			testFile = true
+		}
+
+		for _, block := range info.blocks {
+			if testFile && block.typ == "func" && strings.HasPrefix(block.name, "Test") {
+				testsSet[block.name] = struct{}{}
+				continue
+			}
+			fmu.Lock()
+			testNames, ok := funcToTests[block.name]
+			if !ok {
+				fmt.Printf("[WARN] No test found for %s %+v\n", info.fname, block) // output for debug
+
+			} else {
+				for _, testNames := range testNames {
+					for k := range testNames {
+						testsSet[k] = struct{}{}
+					}
+				}
+			}
+			fmu.Unlock()
+
+		}
+
+	}
+
+	tests := make([]string, 0, len(testsSet))
+	for k := range testsSet {
+		tests = append(tests, k)
+	}
+	return tests, nil
 }

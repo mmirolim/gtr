@@ -537,9 +537,10 @@ func Area(d, h int) int {
 `)
 
 func TestGetFileBlocks(t *testing.T) {
-	entities, err := getFileBlocks(gofile)
+	fileInfo, err := getFileInfo("gofile.go", gofile)
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	fmt.Printf("%# v\n", pretty.Formatter(entities)) // output for debug
+	fmt.Printf("%# v\n", pretty.Formatter(fileInfo)) // output for debug
+	t.Errorf("%v", "TODO")
 }

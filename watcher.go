@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/kr/pretty"
 )
 
 // TODO do not block on when run cmd exits, properly handler exits
@@ -77,14 +78,25 @@ LOOP:
 			// TODO improve message
 			log.Println("File changed:", e.Name)
 			if strings.HasSuffix(e.Name, "_test.go") {
+				fmt.Printf("parseTestFile %+v\n", e.Name) // output for debug
+
 				err := parseTestFile(e.Name)
 				if err != nil {
 					fmt.Printf("parseTestFile error %+v\n", err) // output for debug
 				}
 			} else {
-				fmt.Printf("%+v\n", "TODO parse go file") // output for debug
+				fmt.Printf("%+v\n", "TODO? parse go file") // output for debug
 
 			}
+			changes, err := processFileChanges()
+			if err != nil {
+				fmt.Printf("processFileChanges error %+v\n", err) // output for debug
+
+			} else {
+				fmt.Printf("FileBlocks effected %# v\n", pretty.Formatter(changes)) // output for debug
+
+			}
+
 			// send signal to stop previous command
 			select {
 			case w.stop <- true:
@@ -96,12 +108,17 @@ LOOP:
 				}()
 			}
 			//@TODO check for better solution without sleep, had some issues with flymake emacs go plugin
+			tests, err := findTestsToRun(changes)
+			if err != nil {
+				fmt.Printf("ERROR findTestsToRun %+v\n", err) // output for debug
+			}
 			time.Sleep(w.delay)
 			// run required commands
-			err := w.runTests(".")
+			err = w.runTests(strings.Join(tests, "|"))
 			if err != nil {
 				fmt.Println("runTests err", err)
 			}
+			// TODO on success commit changes? or update untracked file state
 			// process started incr rerun counter
 			rerunCounter++
 
@@ -115,7 +132,10 @@ LOOP:
 }
 
 // cmd sequence to run build with some name, check err and run named binary
-func (w *Watcher) runTests(testNames string) error {
+func (w *Watcher) runTests(testNames string) (err error) {
+	if testNames == "" {
+		testNames = "."
+	}
 	// run tests
 	// do not wait process to finish
 	// in case of console blocking programs
@@ -124,13 +144,17 @@ func (w *Watcher) runTests(testNames string) error {
 		"test", "-v", "-vet", "off", "-run", testNames, "./...", "-args", w.args,
 	})
 	w.printDebug(strings.Join(cmd.Args, " "))
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
-		return err
+		return
 	}
 	// TODO notify on test fail
 	go func() {
 		<-w.stop
+		if cmd.ProcessState.Exited() {
+			// already exited
+			return
+		}
 		// kill process if already running
 		// try to kill process
 		w.printDebug("process to kill pid", cmd.Process.Pid)
@@ -138,13 +162,17 @@ func (w *Watcher) runTests(testNames string) error {
 		if err != nil {
 			fmt.Println("cmd process kill returned error" + err.Error())
 		}
-		err = cmd.Wait()
-		if err != nil {
-			fmt.Println("cmd process wait returned error" + err.Error())
-		}
 	}()
-
-	return nil
+	err = cmd.Wait()
+	if err != nil {
+		fmt.Println("cmd process wait returned error " + err.Error())
+		// notify failed tests
+		nerr := exec.Command("notify-send", "Tests failed: "+testNames).Run()
+		if nerr != nil {
+			fmt.Printf("notify-send error %+v\n", nerr) // output for debug
+		}
+	}
+	return
 }
 
 // recursively set watcher to all child directories
