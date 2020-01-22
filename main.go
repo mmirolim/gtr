@@ -2,6 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -15,6 +18,12 @@ var (
 // FIX godef not working with gomodules
 func main() {
 	flag.Parse()
+	cmd := exec.Command("git", "status")
+	err := cmd.Run()
+	if err != nil {
+		fmt.Printf("git status error %+v\n", err) // output for debug
+		os.Exit(1)
+	}
 	watcher := NewWatcher(
 		*delay, *testBinaryArgs, strings.Split(*excludePrefixes, ","), *showDebug,
 	)
