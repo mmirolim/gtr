@@ -64,10 +64,14 @@ func diff(fname string, prevdata, data []byte) ([]Change, error) {
 	var changes []Change
 	for i := range patches {
 		start := patches[i].Start2
-		if patches[i].Length2 > 0 {
+		count := patches[i].Length2
+		if count > 0 {
 			start++
 		}
-		changes = append(changes, Change{fname, start, patches[i].Length2})
+		if start == 0 && count == 0 {
+			continue
+		}
+		changes = append(changes, Change{fname, start, count})
 	}
 
 	return changes, nil
@@ -116,8 +120,6 @@ func GetDiff(workdir string) ([]Change, error) {
 			// new entry
 			results = append(results, Change{name, 0, 0})
 		}
-		// update entry
-		untrackedFilesMap[name] = data
 	}
 	mu.Unlock()
 	if err != nil {
