@@ -243,6 +243,7 @@ func TestGetDiff(t *testing.T) {
 		output          []Change
 		expectedErr     string
 	}{
+		// TODO describe expected behavior
 		{
 			desc: "Add new file, math.go, geo.go, math_test.go",
 			setup: func(desc string) error {
@@ -282,7 +283,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []Change{{"main.go", 0, 0}},
+			output:      []Change{{"geo.go", 0, 0}, {"main.go", 0, 0}},
 		},
 		{
 			desc: "Change untracked file geo.go, add func Area",
@@ -293,7 +294,22 @@ func TestGetDiff(t *testing.T) {
 				return nil
 			},
 			expectedErr: "",
-			output:      []Change{{"geo.go", 1, 10}},
+			output:      []Change{{"geo.go", 0, 0}},
+		},
+		{
+			desc: "Commit untracked file geo.go",
+			setup: func(desc string) error {
+				err := gitCmdRun("add", "geo.go")
+				if err != nil {
+					return err
+				}
+				return gitCmdRun("commit", "-m", desc)
+			},
+			tearDown: func(desc string) error {
+				return nil
+			},
+			expectedErr: "",
+			output:      nil,
 		},
 		{
 			desc: "Update file math.go with new func max with test",
@@ -333,7 +349,7 @@ func TestGetDiff(t *testing.T) {
 			output:      []Change{{"math.go", 1, 9}},
 		},
 		{
-			desc: "Change func name in untracked file geo.go",
+			desc: "Change func name in file geo.go",
 			setup: func(desc string) error {
 				return ioutil.WriteFile(fileFullName("geo.go"), geo_area_func_rename, 0600)
 			},
@@ -341,7 +357,7 @@ func TestGetDiff(t *testing.T) {
 				return nil
 			},
 			expectedErr: "",
-			output:      []Change{{"geo.go", 4, 7}},
+			output:      []Change{{"geo.go", 5, 6}},
 		},
 	}
 
