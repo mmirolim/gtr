@@ -247,7 +247,11 @@ func getFileInfo(fname string, file []byte) (FileInfo, error) {
 					if ok {
 						block.start = fset.Position(typ.Fields.Opening).Line
 						block.end = fset.Position(typ.Fields.Closing).Line
+						blocks = append(blocks, block)
 					}
+				default:
+					fmt.Printf("[WARN] unhandled GenDecl Spec case %T\n", spec) // output for debug
+
 				}
 			}
 			continue
@@ -271,17 +275,22 @@ func getFileInfo(fname string, file []byte) (FileInfo, error) {
 					} else {
 						return fileInfo, fmt.Errorf("unexpected ast type %T", v.X)
 					}
+				default:
+					fmt.Printf("[WARN] unhandled method reciver case %T\n", v) // output for debug
+
 				}
 			}
+			blocks = append(blocks, block)
 		default:
 			continue
 		}
-		blocks = append(blocks, block)
+
 	}
 	fileInfo.blocks = blocks
 	return fileInfo, nil
 }
 
+// TODO handle Type struct changes
 func findTestsToRun(effectedBlocks map[string]FileInfo) ([]string, error) {
 	testsSet := map[string]struct{}{}
 

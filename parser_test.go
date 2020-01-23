@@ -564,6 +564,7 @@ func TestGetFileBlocks(t *testing.T) {
 				fname:   "gofile.go",
 				pkgName: "main",
 				blocks: []FileBlock{
+					{typ: "type", name: "T1", start: 6, end: 8},
 					{typ: "method", name: "T1.M1", start: 10, end: 14},
 					{typ: "method", name: "T1.M2", start: 16, end: 18},
 					{typ: "func", name: "F2", start: 20, end: 22},
