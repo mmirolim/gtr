@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"reflect"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -270,9 +269,9 @@ func TestGetDiff(t *testing.T) {
 			},
 			expectedErr: "",
 			output: []Change{
-				{"geo.go", 0, 0},
-				{"math.go", 0, 0},
-				{"math_test.go", 0, 0}},
+				{"geo.go", "geo.go", 0, 0},
+				{"math.go", "math.go", 0, 0},
+				{"math_test.go", "math_test.go", 0, 0}},
 		},
 		{
 			desc: "Delete old file main.go",
@@ -283,7 +282,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []Change{{"geo.go", 0, 0}, {"main.go", 0, 0}},
+			output:      []Change{{"geo.go", "geo.go", 0, 0}},
 		},
 		{
 			desc: "Change untracked file geo.go, add func Area",
@@ -294,7 +293,7 @@ func TestGetDiff(t *testing.T) {
 				return nil
 			},
 			expectedErr: "",
-			output:      []Change{{"geo.go", 0, 0}},
+			output:      []Change{{"geo.go", "geo.go", 0, 0}},
 		},
 		{
 			desc: "Commit untracked file geo.go",
@@ -324,7 +323,7 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []Change{{"math.go", 12, 10}, {"math_test.go", 7, 10}},
+			output:      []Change{{"math.go", "math.go", 12, 10}, {"math_test.go", "math_test.go", 7, 10}},
 		},
 		{
 			desc: "Update file math.go, update func min",
@@ -335,18 +334,19 @@ func TestGetDiff(t *testing.T) {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []Change{{"math.go", 2, 7}},
+			output:      []Change{{"math.go", "math.go", 2, 7}, {"math.go", "math.go", 10, 12}},
 		},
 		{
-			desc: "Update file math.go, change package level const and add comment",
+			desc: "Multiple updates to file math.go",
 			setup: func(desc string) error {
-				return ioutil.WriteFile(fileFullName("math.go"), mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
+				return ioutil.WriteFile(fileFullName("math.go"),
+					mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
 			},
 			tearDown: func(desc string) error {
 				return gitCmdRun("commit", "-am", desc)
 			},
 			expectedErr: "",
-			output:      []Change{{"math.go", 1, 9}},
+			output:      []Change{{"math.go", "math.go", 1, 9}, {"math.go", "math.go", 16, 8}},
 		},
 		{
 			desc: "Change func name in file geo.go",
@@ -357,8 +357,9 @@ func TestGetDiff(t *testing.T) {
 				return nil
 			},
 			expectedErr: "",
-			output:      []Change{{"geo.go", 5, 6}},
+			output:      []Change{{"geo.go", "geo.go", 5, 6}},
 		},
+		// TODO add case with renaming file
 	}
 
 	var errOut string
@@ -382,9 +383,10 @@ func TestGetDiff(t *testing.T) {
 			t.Errorf("case [%d] %s\nexpected error %v\ngot %v", i, tc.desc, tc.expectedErr, errOut)
 			continue
 		}
+		diffs := pretty.Diff(tc.output, output)
 
-		if !reflect.DeepEqual(tc.output, output) {
-			t.Errorf("case [%d] %s\nexpected %#v\ngot %#v", i, tc.desc, tc.output, output)
+		if len(diffs) > 0 {
+			t.Errorf("case [%d] %s\nexpected %# v\ngot %# v", i, tc.desc, tc.output, output)
 		}
 	}
 }
@@ -591,5 +593,117 @@ func TestGetFileBlocks(t *testing.T) {
 			fmt.Printf("%# v\n", pretty.Formatter(fileInfo)) // output for debug
 			t.Errorf("%# v", pretty.Formatter(diffs))
 		}
+	}
+}
+
+func Test_changesFromGitDiff(t *testing.T) {
+	cases := []struct {
+		data   string
+		output []Change
+		err    string
+	}{
+		{data: `diff --git a/parser.go b/parser.go
+index 6452f09..de4ce2a 100644
+--- a/parser.go
++++ b/parser.go
+@@ -32,0 +33,2 @@ func changesFromGitDiff(diff string) ([]Change, error) {
++       fmt.Printf("All matches %+v\n", matches) // output for debug
++
+diff --git a/parser_test.go b/parser_test.go
+index 7268a75..31a1203 100644
+--- a/parser_test.go
++++ b/parser_test.go
+@@ -341 +341 @@ func TestGetDiff(t *testing.T) {
+-                       desc: "Update file math.go, change package level const and add comment",
++                       desc: "Multiple updates to file math.go",
+@@ -343 +343,2 @@ func TestGetDiff(t *testing.T) {
+-                               return ioutil.WriteFile(fileFullName("math.go"), mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
++                               return ioutil.WriteFile(fileFullName("math.go"),
++                                       mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
+@@ -349 +350 @@ func TestGetDiff(t *testing.T) {
+-                       output:      []Change{{"math.go", 1, 9}},
++                       output:      []Change{{"math.go", 0, 0}, {"math.go", 1, 9}},
+diff --git a/process_go_file.go b/process_go_file.go
+index 95a1cdd..d32a8ba 100644
+--- a/process_go_file.go
++++ b/process_go_file.go
+@@ -58 +57,0 @@ func parseTestFile(fname string) error {
+-       fmt.Printf("parseTestFile %+v\n", fname) // output for debug
+@@ -69,0 +69 @@ func parseTestFile(fname string) error {
++       // testFiles LOCK
+@@ -72,0 +73 @@ func parseTestFile(fname string) error {
++       // testFiles UNLOCK
+@@ -118,0 +120 @@ func indexFuncsInTestFile(fname string) {
++// TODO handle other types of entities like Types, Interfaces
+@@ -166 +168 @@ func processFileChanges() (map[string]FileInfo, error) {
+-       //fmt.Printf("Process changes\n%+v\n", changes) // output for debug
++       fmt.Printf("Process changes\n%+v\n", changes) // output for debug
+diff --git a/process_go_file_test.go b/process_go_file_test.go
+index d1f20de..c0bcbcd 100644
+--- a/process_go_file_test.go
++++ b/process_go_file_test.go
+@@ -5,0 +6,2 @@ import (
++
++       "github.com/kr/pretty"
+@@ -69,0 +72,22 @@ func Test_fnNameFromCallExpr(t *testing.T) {
++       }
++}
+`, output: []Change{
+			{fpathOld: "parser.go", fpath: "parser.go", start: 33, count: 2},
+			{fpathOld: "parser_test.go", fpath: "parser_test.go", start: 341, count: 0},
+			{fpathOld: "parser_test.go", fpath: "parser_test.go", start: 343, count: 2},
+			{fpathOld: "parser_test.go", fpath: "parser_test.go", start: 350, count: 0},
+			{fpathOld: "process_go_file.go", fpath: "process_go_file.go", start: 57, count: 0},
+			{fpathOld: "process_go_file.go", fpath: "process_go_file.go", start: 69, count: 0},
+			{fpathOld: "process_go_file.go", fpath: "process_go_file.go", start: 73, count: 0},
+			{fpathOld: "process_go_file.go", fpath: "process_go_file.go", start: 120, count: 0},
+			{fpathOld: "process_go_file.go", fpath: "process_go_file.go", start: 168, count: 0},
+			{fpathOld: "process_go_file_test.go", fpath: "process_go_file_test.go", start: 6, count: 2},
+			{fpathOld: "process_go_file_test.go", fpath: "process_go_file_test.go", start: 72, count: 22}}, err: ""},
+		// deleted file
+		{data: `diff --git a/main.go b/main.go
+deleted file mode 100644
+index 6e2c328..0000000
+--- a/main.go
++++ /dev/null
+@@ -1,12 +0,0 @@
+-
+-package main
+-
+-var a, b int = 10, 20
+-
+-func main() {
+-	fmt.Printf("%+v\n", add(a, b))
+-}
+-
+-func add(a, b int) {
+-	return a + b
+-}
+`, output: nil /* no changes */, err: ""},
+	}
+	var buffer bytes.Buffer
+	var errOut string
+	for i, tc := range cases {
+		buffer.Reset()
+		errOut = ""
+		_, err := buffer.WriteString(tc.data)
+		if err != nil {
+			t.Errorf("unexpected buffer.WriteString error %v", err)
+			continue
+		}
+		changes, err := changesFromGitDiff(buffer)
+		if err != nil {
+			errOut = err.Error()
+		}
+		if errOut != tc.err {
+			t.Errorf("case [%d]\nexpected error %#v\ngot %#v", i, tc.err, errOut)
+			continue
+		}
+
+		diffs := pretty.Diff(tc.output, changes)
+		if len(diffs) > 0 {
+			t.Errorf("%# v", pretty.Formatter(diffs))
+		}
+
 	}
 }
