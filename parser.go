@@ -99,7 +99,7 @@ func GetDiff(workdir string) ([]Change, error) {
 	// update untracked files changes
 	mu.Lock()
 	var data []byte
-	// TODO previously untracked files after commit should be removed from map
+
 	for _, name := range untrackedFiles {
 		// new file store
 		data, err = ioutil.ReadFile(workdir + "/" + name)
