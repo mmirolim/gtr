@@ -19,6 +19,7 @@ const fileExt = "go"
 
 // TODO add gnome notifications
 // TODO test passing args to test run
+// TODO define notification expire time
 type Watcher struct {
 	delay           time.Duration
 	debug           bool
@@ -114,6 +115,7 @@ LOOP:
 			}
 			time.Sleep(w.delay)
 			// run required commands
+			// TODO previously untracked files after commit should be removed from map
 			err = w.runTests(strings.Join(tests, "|"))
 			if err != nil {
 				fmt.Println("runTests err", err)
@@ -167,7 +169,13 @@ func (w *Watcher) runTests(testNames string) (err error) {
 	if err != nil {
 		fmt.Println("cmd process wait returned error " + err.Error())
 		// notify failed tests
-		nerr := exec.Command("notify-send", "Tests failed: "+testNames).Run()
+		nerr := exec.Command("notify-send", "-t", "2000", "Tests FAIL: "+testNames).Run()
+		if nerr != nil {
+			fmt.Printf("notify-send error %+v\n", nerr) // output for debug
+		}
+	} else {
+		// notify tests pass
+		nerr := exec.Command("notify-send", "-t", "2000", "Tests PASS: "+testNames).Run()
 		if nerr != nil {
 			fmt.Printf("notify-send error %+v\n", nerr) // output for debug
 		}
