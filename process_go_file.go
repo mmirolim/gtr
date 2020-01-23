@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"strings"
 	"sync"
+
+	"github.com/kr/pretty"
 )
 
 type Entity struct {
@@ -191,6 +193,11 @@ func processFileChanges() (map[string]FileInfo, error) {
 		for _, block := range info.blocks {
 			start := change.start
 			end := change.count + change.start
+			if start == 0 && end == 0 {
+				// new untracked file
+				changeInfo.blocks = append(changeInfo.blocks, block)
+				continue
+			}
 			if end < block.start {
 				break
 			}
@@ -249,8 +256,10 @@ func getFileInfo(fname string, file []byte) (FileInfo, error) {
 						block.end = fset.Position(typ.Fields.Closing).Line
 						blocks = append(blocks, block)
 					}
+				case *ast.ValueSpec:
+					// TODO handle variable decl
 				default:
-					fmt.Printf("[WARN] unhandled GenDecl Spec case %T\n", spec) // output for debug
+					fmt.Printf("[WARN] unhandled GenDecl Spec case %# v\n", pretty.Formatter(spec)) // output for debug
 
 				}
 			}
