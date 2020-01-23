@@ -59,7 +59,7 @@ func (w *Watcher) Run() {
 // and exec required commands, kill previously started process, build new and start it
 func (w *Watcher) startTestRunner() {
 	// run required commands for the first time
-	err := w.runTests(".")
+	err := w.runTests([]string{"."})
 	if err != nil {
 		fmt.Println("runTests err", err)
 	}
@@ -113,10 +113,14 @@ LOOP:
 			if err != nil {
 				fmt.Printf("ERROR findTestsToRun %+v\n", err) // output for debug
 			}
+			if len(tests) == 0 {
+				fmt.Println("[INFO] No test found to run") // output for debug
+				continue LOOP
+			}
 			time.Sleep(w.delay)
 			// run required commands
 			// TODO previously untracked files after commit should be removed from map
-			err = w.runTests(strings.Join(tests, "|"))
+			err = w.runTests(tests)
 			if err != nil {
 				fmt.Println("runTests err", err)
 			}
@@ -134,16 +138,16 @@ LOOP:
 }
 
 // cmd sequence to run build with some name, check err and run named binary
-func (w *Watcher) runTests(testNames string) (err error) {
-	if testNames == "" {
-		testNames = "."
-	}
+// TODO use different strategies for testing when no test found to run or
+// Type struct changed, run all methods? or just Type it self tested?
+func (w *Watcher) runTests(testNames []string) (err error) {
+	tests := strings.Join(testNames, "|")
 	// run tests
 	// do not wait process to finish
 	// in case of console blocking programs
 	// -vet=off to improve speed
 	cmd := newCmd("go", []string{
-		"test", "-v", "-vet", "off", "-run", testNames, "./...", "-args", w.args,
+		"test", "-v", "-vet", "off", "-run", tests, "./...", "-args", w.args,
 	})
 	w.printDebug(strings.Join(cmd.Args, " "))
 	err = cmd.Start()
@@ -169,13 +173,13 @@ func (w *Watcher) runTests(testNames string) (err error) {
 	if err != nil {
 		fmt.Println("cmd process wait returned error " + err.Error())
 		// notify failed tests
-		nerr := exec.Command("notify-send", "-t", "2000", "Tests FAIL: "+testNames).Run()
+		nerr := exec.Command("notify-send", "-t", "2000", "Tests FAIL: "+tests).Run()
 		if nerr != nil {
 			fmt.Printf("notify-send error %+v\n", nerr) // output for debug
 		}
 	} else {
 		// notify tests pass
-		nerr := exec.Command("notify-send", "-t", "2000", "Tests PASS: "+testNames).Run()
+		nerr := exec.Command("notify-send", "-t", "2000", "Tests PASS: "+tests).Run()
 		if nerr != nil {
 			fmt.Printf("notify-send error %+v\n", nerr) // output for debug
 		}
