@@ -55,7 +55,6 @@ var tmu sync.Mutex
 var testFiles = map[string]map[string][]Entity{}
 
 func parseTestFile(fname string) error {
-	fmt.Printf("parseTestFile %+v\n", fname) // output for debug
 	if !strings.HasSuffix(fname, "_test.go") {
 		return fmt.Errorf("not a test file %s", fname)
 	}
@@ -67,9 +66,11 @@ func parseTestFile(fname string) error {
 	if err != nil {
 		return fmt.Errorf("getTestedFuncs error %v", err)
 	}
+	// testFiles LOCK
 	tmu.Lock()
 	testFiles[fname] = dic
 	//fmt.Printf("TestFilesParse\n%# v\n", pretty.Formatter(testFiles)) // output for debug
+	// testFiles UNLOCK
 	tmu.Unlock()
 	indexFuncsInTestFile(fname)
 	return nil
@@ -116,6 +117,7 @@ func indexFuncsInTestFile(fname string) {
 	//fmt.Printf("indexFuncsInTestFile\n%# v\n", pretty.Formatter(funcToTests)) // output for debug
 }
 
+// TODO handle other types of entities like Types, Interfaces
 func getTestedFuncs(testFile []byte) (map[string][]Entity, error) {
 	dic := make(map[string][]Entity)
 	fset := token.NewFileSet()
@@ -163,7 +165,6 @@ func processFileChanges() (map[string]FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Printf("Process changes\n%+v\n", changes) // output for debug
 	fileInfos := make(map[string]FileInfo)
 	// process all changes
 	for _, change := range changes {
