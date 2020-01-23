@@ -57,6 +57,7 @@ func (w *Watcher) Run() {
 
 // main loop to listen all events from all registered directories
 // and exec required commands, kill previously started process, build new and start it
+// TODO configure analyze strategy, parsing/pointer analyzes
 func (w *Watcher) startTestRunner() {
 	// run required commands for the first time
 	err := w.runTests([]string{"."})
@@ -169,21 +170,22 @@ func (w *Watcher) runTests(testNames []string) (err error) {
 			fmt.Println("cmd process kill returned error" + err.Error())
 		}
 	}()
+	// TODO refactor, configure behavior of notifications
+	notifyCmd := exec.Command("notify-send", "-t", "2000", "--hint", "int:transient:1")
 	err = cmd.Wait()
 	if err != nil {
 		fmt.Println("cmd process wait returned error " + err.Error())
 		// notify failed tests
-		nerr := exec.Command("notify-send", "-t", "2000", "Tests FAIL: "+tests).Run()
-		if nerr != nil {
-			fmt.Printf("notify-send error %+v\n", nerr) // output for debug
-		}
+		notifyCmd.Args = append(notifyCmd.Args, "Tests FAIL: "+tests)
 	} else {
 		// notify tests pass
-		nerr := exec.Command("notify-send", "-t", "2000", "Tests PASS: "+tests).Run()
-		if nerr != nil {
-			fmt.Printf("notify-send error %+v\n", nerr) // output for debug
-		}
+		notifyCmd.Args = append(notifyCmd.Args, "Tests PASS: "+tests)
 	}
+	err = notifyCmd.Run()
+	if err != nil {
+		fmt.Printf("notify-send error %+v\n", err) // output for debug
+	}
+
 	return
 }
 
