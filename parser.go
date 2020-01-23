@@ -26,34 +26,42 @@ type Change struct {
 	count int
 }
 
-func newChange(diff string) (Change, error) {
+func changesFromGitDiff(diff string) ([]Change, error) {
+	var results []Change
 	var change Change
-	var err error
-	parts := strings.Split(diff, " ")
-	nparts := len(parts)
-	if nparts == 3 {
-		change.fpath = parts[0]
-		if len(parts[2]) == 0 || parts[2][0] != '+' {
-			return change, fmt.Errorf("wrong diff format %s", diff)
-		}
-		lines := strings.Split(parts[2][1:], ",")
-		change.start, err = strconv.Atoi(lines[0])
-		if err != nil {
-			return change, nil
-		}
-		// -1 +1 changes in same line
-		if len(lines) > 1 {
-			change.count, err = strconv.Atoi(lines[1])
-			if err != nil {
-				return change, nil
+	matches := reFnameAndLinesInDiff.FindAllString(diff, -1)
+	for i := range matches {
+		var err error
+		deltaChange := reFnameAndLinesInDiff.ReplaceAllString(matches[i], "${fname} ${old} ${new}")
+		parts := strings.Split(deltaChange, " ")
+		nparts := len(parts)
+		if nparts == 3 {
+			change.fpath = parts[0]
+			if len(parts[2]) == 0 || parts[2][0] != '+' {
+				return nil, fmt.Errorf("wrong diff format %s", deltaChange)
 			}
+			lines := strings.Split(parts[2][1:], ",")
+			change.start, err = strconv.Atoi(lines[0])
+			if err != nil {
+				return nil, fmt.Errorf("wrong number format %v", err)
+			}
+			// -1 +1 changes in same line
+			if len(lines) > 1 {
+				change.count, err = strconv.Atoi(lines[1])
+				if err != nil {
+					return nil, fmt.Errorf("wrong number format %v", err)
+				}
+			}
+		} else if nparts == 1 {
+			change.fpath = parts[0]
+		} else {
+			return nil, fmt.Errorf("wrong diff format %s", deltaChange)
 		}
-	} else if nparts == 1 {
-		change.fpath = parts[0]
-	} else {
-		return change, fmt.Errorf("wrong diff format %s", diff)
+
+		results = append(results, change)
 	}
-	return change, nil
+
+	return results, nil
 }
 
 func diff(fname string, prevdata, data []byte) ([]Change, error) {
@@ -79,6 +87,7 @@ func diff(fname string, prevdata, data []byte) ([]Change, error) {
 
 // TODO comments
 // TODO maybe use existing git-diff parsers for unified format
+// TODO do not use global states
 func GetDiff(workdir string) ([]Change, error) {
 	// TODO store hashes of new files and return untracked new files to run
 	var gitOut bytes.Buffer
@@ -97,6 +106,7 @@ func GetDiff(workdir string) ([]Change, error) {
 	}
 	gitOut.Reset()
 	// update untracked files changes
+	// untrackedFiles LOCK
 	mu.Lock()
 	var data []byte
 
@@ -121,6 +131,7 @@ func GetDiff(workdir string) ([]Change, error) {
 			results = append(results, Change{name, 0, 0})
 		}
 	}
+	// untrackedFiles UNLOCK
 	mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -133,13 +144,10 @@ func GetDiff(workdir string) ([]Change, error) {
 	if err != nil {
 		return nil, err
 	}
-	matches = reFnameAndLinesInDiff.FindAllString(gitOut.String(), -1)
-	for i := range matches {
-		change, err := newChange(reFnameAndLinesInDiff.ReplaceAllString(matches[i], "${fname} ${old} ${new}"))
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, change)
+	changes, err := changesFromGitDiff(gitOut.String())
+	if err != nil {
+		return nil, err
 	}
+	results = append(results, changes...)
 	return results, nil
 }
