@@ -6,8 +6,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
-
-	dmp "github.com/sergi/go-diff/diffmatchpatch"
 )
 
 var reFnameUntrackedFiles = regexp.MustCompile(`\?\? (?P<fname>[a-zA-Z0-9_\-/]+\.go)`)
@@ -131,27 +129,6 @@ func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	}
 
 	return changes, serr
-}
-
-func diff(fname string, prevdata, data []byte) ([]Change, error) {
-	patcher := dmp.New()
-	t1, t2, _ := patcher.DiffLinesToChars(string(prevdata), string(data))
-	diffs := patcher.DiffMain(t1, t2, true)
-	patches := patcher.PatchMake(diffs)
-	var changes []Change
-	for i := range patches {
-		start := patches[i].Start2
-		count := patches[i].Length2
-		if count > 0 {
-			start++
-		}
-		if start == 0 && count == 0 {
-			continue
-		}
-		// TODO use /dev/null?
-		changes = append(changes, Change{fname, fname, start, count})
-	}
-	return changes, nil
 }
 
 // TODO comments
