@@ -553,10 +553,42 @@ func Area(d, h int) int {
 `)
 
 func TestGetFileBlocks(t *testing.T) {
-	fileInfo, err := getFileInfo("gofile.go", gofile)
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
+	cases := []struct {
+		fileName string
+		fileData []byte
+		output   FileInfo
+		err      string
+	}{
+		{
+			fileName: "gofile.go", fileData: gofile, output: FileInfo{
+				fname:   "gofile.go",
+				pkgName: "main",
+				blocks: []FileBlock{
+					{typ: "method", name: "T1.M1", start: 10, end: 14},
+					{typ: "method", name: "T1.M2", start: 16, end: 18},
+					{typ: "func", name: "F2", start: 20, end: 22},
+					{typ: "func", name: "Perimeter", start: 24, end: 26},
+					{typ: "func", name: "Area", start: 28, end: 30},
+				},
+			},
+		},
 	}
-	fmt.Printf("%# v\n", pretty.Formatter(fileInfo)) // output for debug
-	t.Errorf("%v", "TODO")
+	var errOut string
+	for i, tc := range cases {
+		errOut = ""
+		fileInfo, err := getFileInfo("gofile.go", gofile)
+		if err != nil {
+			errOut = err.Error()
+		}
+		if errOut != tc.err {
+			t.Errorf("case [%d]\nexpected error %#v\ngot %#v", i, tc.err, errOut)
+			continue
+		}
+
+		diffs := pretty.Diff(tc.output, fileInfo)
+		if len(diffs) > 0 {
+			fmt.Printf("%# v\n", pretty.Formatter(fileInfo)) // output for debug
+			t.Errorf("%# v", pretty.Formatter(diffs))
+		}
+	}
 }

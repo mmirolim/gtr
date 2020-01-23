@@ -217,6 +217,10 @@ type FileBlock struct {
 	start, end int // lines [start, end] from 1
 }
 
+// getFileInfo returns FileInfo struct with
+// with entities divided in blocks according to line position
+// blocks sorted by start line
+// TODO add Type Decl blocks
 func getFileInfo(fname string, file []byte) (FileInfo, error) {
 	var fileInfo FileInfo
 	var blocks []FileBlock
