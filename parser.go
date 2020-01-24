@@ -24,6 +24,18 @@ type Change struct {
 	count    int
 }
 
+type GitCMD struct {
+	workDir string
+}
+
+func NewGitCMD(workDir string) *GitCMD {
+	return &GitCMD{workDir}
+}
+
+func (g *GitCMD) Diff() ([]Change, error) {
+	return GetDiff(g.workDir)
+}
+
 // TODO handle rename/copy/delete, /dev/null is used to signal created or deleted files.
 func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	var changes []Change

@@ -24,8 +24,19 @@ func main() {
 		fmt.Printf("git status error %+v\n", err) // output for debug
 		os.Exit(1)
 	}
+	debug = *showDebug
+	workDir := "."
+	gitcmd := NewGitCMD(workDir)
+	store := NewIndex()
+	diffStrategy, err := NewGitDiffStrategy(workDir, gitcmd, store)
+	if err != nil {
+		fmt.Printf("NewGitDiffStrategy error %+v\n", err) // output for debug
+		os.Exit(1)
+	}
+	testRunner := NewTestRunner(diffStrategy, *testBinaryArgs)
 	watcher := NewWatcher(
-		*delay, *testBinaryArgs, strings.Split(*excludePrefixes, ","), *showDebug,
+		[]Task{testRunner},
+		*delay, strings.Split(*excludePrefixes, ","),
 	)
 	watcher.Run()
 }
