@@ -33,9 +33,11 @@ func main() {
 		fmt.Printf("NewGitDiffStrategy error %+v\n", err) // output for debug
 		os.Exit(1)
 	}
-	testRunner := NewTestRunner(diffStrategy, *testBinaryArgs)
+	notifier := NewDesktopNotificator(true, 2000)
+	testRunner := NewGoTestRunner(diffStrategy, *testBinaryArgs)
 	watcher := NewWatcher(
 		[]Task{testRunner},
+		notifier,
 		*delay, strings.Split(*excludePrefixes, ","),
 	)
 	watcher.Run()

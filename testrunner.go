@@ -5,20 +5,24 @@ import (
 	"strings"
 )
 
-type TestRunner struct {
+// Runs go tests
+type GoTestRunner struct {
 	strategy Strategy
 	args     string
 }
 
-func NewTestRunner(strategy Strategy, args string) *TestRunner {
-	return &TestRunner{strategy, args}
+func NewGoTestRunner(strategy Strategy, args string) *GoTestRunner {
+	return &GoTestRunner{strategy, args}
 }
 
-func (tr *TestRunner) ID() string {
-	return "TestRunner"
+func (tr *GoTestRunner) ID() string {
+	return "GoTestRunner"
 }
 
-func (tr *TestRunner) Run(fname string, stop <-chan bool) (msg string, err error) {
+func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err error) {
+	if !strings.HasSuffix(fname, ".go") {
+		return "unsupported file type", nil
+	}
 	tests, err := tr.strategy.TestsToRun()
 	if err != nil {
 		return "", fmt.Errorf("strategy error %v", err)

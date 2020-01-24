@@ -14,8 +14,6 @@ import (
 )
 
 // TODO do not block on when run cmd exits, properly handler exits
-const fileExt = "go"
-
 var debug = true
 
 type Task interface {
@@ -23,11 +21,16 @@ type Task interface {
 	Run(fname string, stop <-chan bool) (msg string, err error)
 }
 
+type NotificationService interface {
+	Send(msg string) error
+}
+
 // TODO add gnome notifications
 // TODO test passing args to test run
 // TODO define notification expire time
 // TODO add notification service
 type Watcher struct {
+	notificator     NotificationService
 	tasks           []Task
 	delay           time.Duration
 	excludePrefixes []string
@@ -37,10 +40,12 @@ type Watcher struct {
 }
 
 func NewWatcher(tasks []Task,
+	notificator NotificationService,
 	delay int,
 	excludePrefixes []string,
 ) Watcher {
 	return Watcher{
+		notificator:     notificator,
 		tasks:           tasks,
 		delay:           time.Duration(delay) * time.Millisecond,
 		excludePrefixes: excludePrefixes,
@@ -77,7 +82,7 @@ LOOP:
 				name := path.Base(e.Name)
 				// TODO move to task responsibility
 				// filter all files except .go
-				if e.Op&fsnotify.Write != fsnotify.Write || !strings.HasSuffix(name, "."+fileExt) || strings.HasPrefix(name, excludePrefix) {
+				if e.Op&fsnotify.Write != fsnotify.Write || strings.HasPrefix(name, excludePrefix) {
 					continue LOOP
 				}
 			}
@@ -106,22 +111,10 @@ LOOP:
 				} else {
 					fmt.Printf("Task.ID: %s %s\n", task.ID(), msg) // output for debug
 				}
-				// // TODO refactor, configure behavior of notifications
-				// notifyCmd := exec.Command("notify-send", "-t", "2000", "--hint", "int:transient:1")
-				// err = cmd.Wait()
-				// if err != nil {
-				// 	fmt.Println("cmd process wait returned error " + err.Error())
-				// 	// notify failed tests
-				// 	notifyCmd.Args = append(notifyCmd.Args, "Tests FAIL: "+tests)
-				// } else {
-				// 	// notify tests pass
-				// 	notifyCmd.Args = append(notifyCmd.Args, "Tests PASS: "+tests)
-				// }
-				// err = notifyCmd.Run()
-				// if err != nil {
-				// 	fmt.Printf("notify-send error %+v\n", err) // output for debug
-				// }
-
+				err = w.notificator.Send(msg)
+				if err != nil {
+					fmt.Printf("NotificationService error  %+v\n", err)
+				}
 			}
 			// TODO on success commit changes? or update untracked file state
 			// process started incr rerun counter
