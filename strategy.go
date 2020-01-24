@@ -28,6 +28,7 @@ func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	changedBlocks := map[string]FileInfo{}
 	fileInfos := make(map[string]FileInfo)
 	// process all changes
@@ -76,22 +77,28 @@ func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 		}
 
 	}
-
+	// TODO handle test file changes
 	testsSet := map[string]struct{}{}
 	for fname, info := range changedBlocks {
 		for _, block := range info.blocks {
-			// TODO filter only unique type, name blocks
-			dic, err := str.store.FindEntityCallers(fname,
-				Entity{typ: block.typ, name: block.name})
-			if err != nil {
-				if err == ErrUnsupportedType {
-					continue
+			if block.typ == "func" && strings.HasPrefix(block.name, "Test") &&
+				strings.HasSuffix(fname, "_test.go") {
+				// test func
+				testsSet[block.name] = struct{}{}
+			} else {
+				// TODO filter only unique type, name blocks
+				dic, err := str.store.FindEntityCallers(fname,
+					Entity{typ: block.typ, name: block.name})
+				if err != nil {
+					if err == ErrUnsupportedType {
+						continue
+					}
+					return nil, fmt.Errorf("store.FindEntityCallers unexpected error %+v", err)
 				}
-				return nil, fmt.Errorf("store.FindEntityCallers unexpected error %+v", err)
-			}
-			for _, entities := range dic {
-				for i := range entities {
-					testsSet[entities[i].name] = struct{}{}
+				for _, entities := range dic {
+					for i := range entities {
+						testsSet[entities[i].name] = struct{}{}
+					}
 				}
 			}
 		}
