@@ -108,8 +108,7 @@ LOOP:
 				msg, err := task.Run(e.Name, w.stop)
 				if err != nil {
 					fmt.Printf("Task.ID: %s returned err %+v\n", task.ID(), err) // output for debug
-				} else {
-					fmt.Printf("Task.ID: %s %s\n", task.ID(), msg) // output for debug
+					continue
 				}
 				err = w.notificator.Send(msg)
 				if err != nil {
@@ -119,7 +118,6 @@ LOOP:
 			// TODO on success commit changes? or update untracked file state
 			// process started incr rerun counter
 			rerunCounter++
-
 			// add loging
 			w.printDebug("command executed")
 

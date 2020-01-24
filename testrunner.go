@@ -21,7 +21,7 @@ func (tr *GoTestRunner) ID() string {
 
 func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err error) {
 	if !strings.HasSuffix(fname, ".go") {
-		return "unsupported file type", nil
+		return "", ErrUnsupportedType
 	}
 	tests, err := tr.strategy.TestsToRun()
 	if err != nil {
