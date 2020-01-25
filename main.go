@@ -27,12 +27,7 @@ func main() {
 	debug = *showDebug
 	workDir := "."
 	gitcmd := NewGitCMD(workDir)
-	store := NewIndex()
-	diffStrategy, err := NewGitDiffStrategy(workDir, gitcmd, store)
-	if err != nil {
-		fmt.Printf("NewGitDiffStrategy error %+v\n", err) // output for debug
-		os.Exit(1)
-	}
+	diffStrategy := NewGitDiffStrategy(gitcmd)
 	notifier := NewDesktopNotificator(true, 2000)
 	testRunner := NewGoTestRunner(diffStrategy, *testBinaryArgs)
 	watcher := NewWatcher(

@@ -1,25 +1,25 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strings"
+
+	"golang.org/x/tools/go/callgraph"
+	"golang.org/x/tools/go/callgraph/cha"
+	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/ssa/ssautil"
 )
+
+var ErrUnsupportedType = errors.New("unsupported type")
 
 type Strategy interface {
 	TestsToRun() ([]string, error)
 }
 
-type Storage interface {
-	Store(fname string, data []byte) error
-	// TODO change entity to fileBlock?
-	FindEntityCallers(fname string, ent Entity) (map[string][]Entity, error)
-}
-
 type GitDiffStrategy struct {
-	store  Storage
 	gitCmd *GitCMD
 }
 
@@ -29,8 +29,66 @@ func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 		return nil, err
 	}
 
+	changedBlocks, err := changesToFileBlocks(changes)
+	if err != nil {
+		return nil, err
+	}
+
+	moduleName, filePathToPkg, prog, err := analyzeGoCode(".")
+	// TODO make analyze configurable
+	graph := cha.CallGraph(prog)
+	nodesToTest := mapEntitiesToTests(moduleName, graph)
+	fmt.Printf("Nodes to test %+v\n", "nodesToTest") // output for debug
+	for k := range nodesToTest {
+		for node := range nodesToTest[k] {
+			fmt.Printf("Name %s %+v\n", k, node) // output for debug
+		}
+	}
+	fmt.Printf("%+v\n", "filePathToPkg") // output for debug
+
+	for k, v := range filePathToPkg {
+		fmt.Printf("K-> %+v V-> %v\n", k, v) // output for debug
+
+	}
+	// TODO handle test file changes
+	testsSet := map[string]struct{}{}
+	for fname, info := range changedBlocks {
+		for _, block := range info.blocks {
+			fmt.Printf("Fname %s\n%+v\n", fname, block) // output for debug
+
+			if block.typ == "func" && strings.HasPrefix(block.name, "Test") &&
+				strings.HasSuffix(fname, "_test.go") {
+				// test func
+				testsSet[block.name] = struct{}{}
+			} else {
+				nodeName := filePathToPkg[fname] + "." + block.name
+				fmt.Printf("fname %s nodeName %+v\n", fname, nodeName) // output for debug
+
+				for node := range nodesToTest[nodeName] {
+					testsSet[node.Func.Name()] = struct{}{}
+				}
+			}
+		}
+	}
+	tests := make([]string, 0, len(testsSet))
+	for k := range testsSet {
+		tests = append(tests, k)
+		fmt.Printf(">>%+v\n", k) // output for debug
+
+	}
+	return tests, nil
+}
+
+// TODO configure source code analyze algorithm
+func NewGitDiffStrategy(cmd *GitCMD) *GitDiffStrategy {
+	return &GitDiffStrategy{
+		gitCmd: cmd,
+	}
+}
+
+func changesToFileBlocks(changes []Change) (map[string]FileInfo, error) {
 	changedBlocks := map[string]FileInfo{}
-	fileInfos := make(map[string]FileInfo)
+	fileInfos := map[string]FileInfo{}
 	// process all changes
 	for _, change := range changes {
 		info, ok := fileInfos[change.fpath]
@@ -77,83 +135,85 @@ func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 		}
 
 	}
-	// TODO handle test file changes
-	testsSet := map[string]struct{}{}
-	for fname, info := range changedBlocks {
-		for _, block := range info.blocks {
-			if block.typ == "func" && strings.HasPrefix(block.name, "Test") &&
-				strings.HasSuffix(fname, "_test.go") {
-				// test func
-				testsSet[block.name] = struct{}{}
-			} else {
-				// TODO filter only unique type, name blocks
-				dic, err := str.store.FindEntityCallers(fname,
-					Entity{typ: block.typ, name: block.name})
-				if err != nil {
-					if err == ErrUnsupportedType {
-						continue
-					}
-					return nil, fmt.Errorf("store.FindEntityCallers unexpected error %+v", err)
-				}
-				for _, entities := range dic {
-					for i := range entities {
-						testsSet[entities[i].name] = struct{}{}
-					}
-				}
-			}
-		}
-	}
-	tests := make([]string, 0, len(testsSet))
-	for k := range testsSet {
-		tests = append(tests, k)
-	}
-	return tests, nil
+	return changedBlocks, nil
 }
 
-func NewGitDiffStrategy(workdir string, cmd *GitCMD, store Storage) (*GitDiffStrategy, error) {
-	strategy := &GitDiffStrategy{
-		gitCmd: cmd, store: store,
+func analyzeGoCode(workDir string) (
+	moduleName string,
+	filePathToPkg map[string]string,
+	prog *ssa.Program,
+	err error,
+) {
+	cfg := &packages.Config{
+		Dir: workDir,
+		Mode: packages.NeedName |
+			packages.NeedFiles |
+			packages.NeedCompiledGoFiles |
+			packages.NeedSyntax |
+			packages.NeedImports |
+			packages.NeedDeps |
+			packages.NeedTypes |
+			packages.NeedTypesSizes |
+			packages.NeedTypesInfo,
+		Tests: true,
 	}
-	// store all go files
-	// walk current directory and all subdirectories
-	err := filepath.Walk(workdir, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			if len(path) > 1 {
-				// skip hidden and vendor dirs
-				if strings.HasPrefix(filepath.Base(path), ".") || strings.HasPrefix(path, "vendor") {
-					return filepath.SkipDir
-				}
-			}
-			dir, err := os.Open(info.Name())
-			if err != nil {
-				return err
-			}
-			fileInfos, err := dir.Readdir(-1)
-			if err != nil {
-				return err
-			}
-			// close file
-			dir.Close()
-			for _, f := range fileInfos {
-				if f.IsDir() {
-					// skip
-					continue
-				}
-				fname := filepath.Join(path, f.Name())
-				// TODO parse other entities
-				data, err := ioutil.ReadFile(fname)
-				if err != nil {
-					fmt.Printf("skip ReadFile error %s %+v\n", fname, err) // output for debug
-					continue
-				}
-				err = store.Store(fname, data)
-				if err != nil {
-					fmt.Printf("getTestedFuncs unexpected error %+v\n", err) // output for debug
-				}
+	// find all packages
+	pkgs, err := packages.Load(cfg, "./...")
+	if err != nil {
+		return
+	}
+	if packages.PrintErrors(pkgs) > 0 {
+		return
+	}
+
+	for i := 1; i < len(pkgs); i++ {
+		pkg := pkgs[i]
+		if len(moduleName) > len(pkg.ID) {
+			moduleName = pkg.ID
+		}
+	}
+	filePathToPkg = map[string]string{}
+	for _, pkg := range pkgs {
+		path := pkg.PkgPath
+		for _, file := range pkg.GoFiles {
+			lid := strings.LastIndexByte(file, '/')
+			if moduleName == path {
+				// root dir
+				filePathToPkg[file[lid+1:]] = path
+			} else {
+				filePathToPkg[path[len(moduleName)+1:]+"/"+file[lid+1:]] = path
 			}
 		}
-		return err
-	})
+	}
+	prog, _ = ssautil.Packages(pkgs, ssa.NaiveForm|ssa.SanityCheckFunctions)
+	prog.Build()
+	return moduleName, filePathToPkg, prog, err
+}
 
-	return strategy, err
+func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) map[string]map[*callgraph.Node]bool {
+	nodesToTest := map[string]map[*callgraph.Node]bool{}
+	for k := range graph.Nodes {
+		if k == nil || k.Package() == nil ||
+			!strings.HasPrefix(k.Package().Pkg.Path(), moduleName) {
+			continue
+		}
+		nodeType := k.Type().String()
+		if strings.Contains(nodeType, "*testing.T") ||
+			strings.Contains(nodeType, "*testing.M") {
+			testFuncNode := graph.Nodes[k]
+			for _, edge := range testFuncNode.Out {
+				nodeName := edge.Callee.Func.Package().Pkg.Path() + "." + edge.Callee.Func.Name()
+				// DEBUG
+				fmt.Printf(">>Nodename %+v\n", nodeName) // output for debug
+				tests, ok := nodesToTest[nodeName]
+				if !ok {
+					tests = map[*callgraph.Node]bool{}
+					nodesToTest[nodeName] = tests
+				}
+
+				tests[edge.Caller] = true
+			}
+		}
+	}
+	return nodesToTest
 }

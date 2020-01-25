@@ -57,11 +57,12 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 			fmt.Println("test process kill returned error" + err.Error())
 		}
 	}()
-	msg = "Tests PASS: " + testNames
+
 	err = cmd.Wait()
-	if err != nil {
-		err = fmt.Errorf("test process returned error " + err.Error())
+	if cmd.ProcessState.Success() {
+		msg = "Tests PASS: " + testNames
+	} else {
 		msg = "Tests FAIL: " + testNames
 	}
-	return msg, err
+	return msg, nil
 }
