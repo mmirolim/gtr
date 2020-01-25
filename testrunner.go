@@ -19,6 +19,7 @@ func (tr *GoTestRunner) ID() string {
 	return "GoTestRunner"
 }
 
+// TODO run tests in parallel per package?
 func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err error) {
 	if !strings.HasSuffix(fname, ".go") {
 		return "", ErrUnsupportedType
@@ -30,6 +31,9 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 	if len(tests) == 0 {
 		return "no test found to run", nil
 	}
+
+	printTestNames(tests)
+
 	testNames := strings.Join(tests, "|")
 	// run tests
 	// do not wait process to finish
@@ -65,4 +69,12 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 		msg = "Tests FAIL: " + testNames
 	}
 	return msg, nil
+}
+
+func printTestNames(tests []string) {
+	fmt.Println("=============\nTests to run") // output for debug
+	for i := range tests {
+		fmt.Printf("-> %+v\n", tests[i]) // output for debug
+	}
+	fmt.Println("=============")
 }

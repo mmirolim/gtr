@@ -23,47 +23,45 @@ type GitDiffStrategy struct {
 	gitCmd *GitCMD
 }
 
+// TODO test on different modules and Gopath version like go-radix
 func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 	changes, err := str.gitCmd.Diff()
 	if err != nil {
 		return nil, err
 	}
-
+	if len(changes) == 0 {
+		// no changes to test
+		return nil, nil
+	}
 	changedBlocks, err := changesToFileBlocks(changes)
 	if err != nil {
 		return nil, err
 	}
 
 	moduleName, filePathToPkg, prog, err := analyzeGoCode(".")
+	if err != nil {
+		return nil, err
+	}
 	// TODO make analyze configurable
 	graph := cha.CallGraph(prog)
 	nodesToTest := mapEntitiesToTests(moduleName, graph)
-	fmt.Printf("Nodes to test %+v\n", "nodesToTest") // output for debug
-	for k := range nodesToTest {
-		for node := range nodesToTest[k] {
-			fmt.Printf("Name %s %+v\n", k, node) // output for debug
-		}
-	}
-	fmt.Printf("%+v\n", "filePathToPkg") // output for debug
+	// for k := range nodesToTest {
+	// 	for node := range nodesToTest[k] {
+	// 		fmt.Printf("Name %s %+v\n", k, node) // output for debug
+	// 	}
+	// }
 
-	for k, v := range filePathToPkg {
-		fmt.Printf("K-> %+v V-> %v\n", k, v) // output for debug
+	// fmt.Printf("%+v\n", "filePathToPkg") // output for debug
 
-	}
-	// TODO handle test file changes
 	testsSet := map[string]struct{}{}
 	for fname, info := range changedBlocks {
 		for _, block := range info.blocks {
-			fmt.Printf("Fname %s\n%+v\n", fname, block) // output for debug
-
 			if block.typ == "func" && strings.HasPrefix(block.name, "Test") &&
 				strings.HasSuffix(fname, "_test.go") {
 				// test func
 				testsSet[block.name] = struct{}{}
 			} else {
 				nodeName := filePathToPkg[fname] + "." + block.name
-				fmt.Printf("fname %s nodeName %+v\n", fname, nodeName) // output for debug
-
 				for node := range nodesToTest[nodeName] {
 					testsSet[node.Func.Name()] = struct{}{}
 				}
@@ -73,8 +71,6 @@ func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 	tests := make([]string, 0, len(testsSet))
 	for k := range testsSet {
 		tests = append(tests, k)
-		fmt.Printf(">>%+v\n", k) // output for debug
-
 	}
 	return tests, nil
 }
@@ -157,15 +153,17 @@ func analyzeGoCode(workDir string) (
 			packages.NeedTypesInfo,
 		Tests: true,
 	}
+	var pkgs []*packages.Package
 	// find all packages
-	pkgs, err := packages.Load(cfg, "./...")
+	pkgs, err = packages.Load(cfg, "./...")
 	if err != nil {
 		return
 	}
 	if packages.PrintErrors(pkgs) > 0 {
+		err = errors.New("analyzeGoCode error")
 		return
 	}
-
+	moduleName = pkgs[0].ID
 	for i := 1; i < len(pkgs); i++ {
 		pkg := pkgs[i]
 		if len(moduleName) > len(pkg.ID) {
@@ -187,7 +185,7 @@ func analyzeGoCode(workDir string) (
 	}
 	prog, _ = ssautil.Packages(pkgs, ssa.NaiveForm|ssa.SanityCheckFunctions)
 	prog.Build()
-	return moduleName, filePathToPkg, prog, err
+	return
 }
 
 func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) map[string]map[*callgraph.Node]bool {
@@ -202,9 +200,26 @@ func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) map[string]ma
 			strings.Contains(nodeType, "*testing.M") {
 			testFuncNode := graph.Nodes[k]
 			for _, edge := range testFuncNode.Out {
-				nodeName := edge.Callee.Func.Package().Pkg.Path() + "." + edge.Callee.Func.Name()
-				// DEBUG
-				fmt.Printf(">>Nodename %+v\n", nodeName) // output for debug
+				fun := edge.Callee.Func
+				path := fun.Package().Pkg.Path()
+				nodeName := edge.Callee.Func.Name()
+				if fun.Signature.Recv() != nil {
+					// method
+					path = fun.Signature.Recv().Type().String()
+					if path[0] == '*' { // pointer type
+						path = path[1:]
+					}
+					// store all Test for Type method as test for a Type
+					tests, ok := nodesToTest[path]
+					if !ok {
+						tests = map[*callgraph.Node]bool{}
+						nodesToTest[path] = tests
+					}
+
+					tests[edge.Caller] = true
+				}
+
+				nodeName = path + "." + nodeName
 				tests, ok := nodesToTest[nodeName]
 				if !ok {
 					tests = map[*callgraph.Node]bool{}
