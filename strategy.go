@@ -23,7 +23,8 @@ type GitDiffStrategy struct {
 	gitCmd *GitCMD
 }
 
-// TODO test on different modules and Gopath version like go-radix
+// TODO test on different modules and Gopath version
+// TODO work with helper funcs and t.Run funcs subtests
 func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 	changes, err := str.gitCmd.Diff()
 	if err != nil {
@@ -33,40 +34,53 @@ func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 		// no changes to test
 		return nil, nil
 	}
+	// TODO to not run if changes are same, cache prev run
 	changedBlocks, err := changesToFileBlocks(changes)
 	if err != nil {
 		return nil, err
 	}
-
 	moduleName, filePathToPkg, prog, err := analyzeGoCode(".")
 	if err != nil {
 		return nil, err
 	}
 	// TODO make analyze configurable
 	graph := cha.CallGraph(prog)
-	nodesToTest := mapEntitiesToTests(moduleName, graph)
-	// for k := range nodesToTest {
-	// 	for node := range nodesToTest[k] {
-	// 		fmt.Printf("Name %s %+v\n", k, node) // output for debug
-	// 	}
-	// }
-
-	// fmt.Printf("%+v\n", "filePathToPkg") // output for debug
-
-	testsSet := map[string]struct{}{}
-	for fname, info := range changedBlocks {
+	// find nodes from changed blocks
+	changedNodes := map[*callgraph.Node]bool{}
+	for _, info := range changedBlocks {
+		fname := filePathToPkg[info.fname]
 		for _, block := range info.blocks {
-			if block.typ == "func" && strings.HasPrefix(block.name, "Test") &&
-				strings.HasSuffix(fname, "_test.go") {
-				// test func
-				testsSet[block.name] = struct{}{}
-			} else {
-				nodeName := filePathToPkg[fname] + "." + block.name
-				for node := range nodesToTest[nodeName] {
-					testsSet[node.Func.Name()] = struct{}{}
+			for fn := range graph.Nodes {
+				if fn == nil || fn.Package() == nil {
+					continue
+				}
+				if fn.Name() == block.name && fn.Package().Pkg.Path() == fname {
+					changedNodes[graph.Nodes[fn]] = true
 				}
 			}
 		}
+	}
+	if len(changedNodes) == 0 {
+		fmt.Println("no updated nodes found")
+		return nil, nil
+	}
+	// allNodesExceptTests
+	_, allTests, _ := mapEntitiesToTests(moduleName, graph)
+
+	testsSet := map[string]bool{}
+	for tnode := range allTests {
+		callgraph.PathSearch(tnode, func(n *callgraph.Node) bool {
+			if changedNodes[n] {
+				// TODO support running t.Run funcstions
+				if idx := strings.IndexByte(tnode.Func.Name(), '$'); idx != -1 {
+					testsSet[tnode.Func.Name()[0:idx]] = true
+				} else {
+					testsSet[tnode.Func.Name()] = true
+				}
+				return true
+			}
+			return false
+		})
 	}
 	tests := make([]string, 0, len(testsSet))
 	for k := range testsSet {
@@ -188,16 +202,25 @@ func analyzeGoCode(workDir string) (
 	return
 }
 
-func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) map[string]map[*callgraph.Node]bool {
-	nodesToTest := map[string]map[*callgraph.Node]bool{}
+func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) (
+	allNodesExceptTests map[string]*callgraph.Node,
+	allTests map[*callgraph.Node]bool,
+	nodesToTest map[string]map[*callgraph.Node]bool,
+) {
+	allNodesExceptTests = map[string]*callgraph.Node{}
+	allTests = map[*callgraph.Node]bool{}
+	nodesToTest = map[string]map[*callgraph.Node]bool{}
 	for k := range graph.Nodes {
 		if k == nil || k.Package() == nil ||
 			!strings.HasPrefix(k.Package().Pkg.Path(), moduleName) {
 			continue
 		}
 		nodeType := k.Type().String()
-		if strings.Contains(nodeType, "*testing.T") ||
-			strings.Contains(nodeType, "*testing.M") {
+		// filter exported Test funcs
+		if strings.HasPrefix(k.Name(), "Test") &&
+			(strings.Contains(nodeType, "*testing.T") ||
+				strings.Contains(nodeType, "*testing.M")) {
+			allTests[graph.Nodes[k]] = true
 			testFuncNode := graph.Nodes[k]
 			for _, edge := range testFuncNode.Out {
 				fun := edge.Callee.Func
@@ -215,7 +238,7 @@ func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) map[string]ma
 						tests = map[*callgraph.Node]bool{}
 						nodesToTest[path] = tests
 					}
-
+					// TODO no need to store A -> methods test mapping, track only methods change
 					tests[edge.Caller] = true
 				}
 
@@ -228,7 +251,19 @@ func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) map[string]ma
 
 				tests[edge.Caller] = true
 			}
+		} else {
+			path := k.Package().Pkg.Path()
+			fun := graph.Nodes[k].Func
+			if fun.Signature.Recv() != nil {
+				// method
+				path = fun.Signature.Recv().Type().String()
+				if path[0] == '*' { // pointer type
+					path = path[1:]
+				}
+			}
+			nodeName := path + "." + fun.Name()
+			allNodesExceptTests[nodeName] = graph.Nodes[k]
 		}
 	}
-	return nodesToTest
+	return
 }
