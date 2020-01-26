@@ -3,7 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/token"
 	"io/ioutil"
+	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/callgraph"
@@ -16,7 +19,7 @@ import (
 var ErrUnsupportedType = errors.New("unsupported type")
 
 type Strategy interface {
-	TestsToRun() ([]string, error)
+	TestsToRun() (tests []string, subTests []string, err error)
 }
 
 type GitDiffStrategy struct {
@@ -26,23 +29,26 @@ type GitDiffStrategy struct {
 // TODO test on different modules and Gopath version
 // TODO work with helper funcs and t.Run funcs subtests
 // TODO test with Vendored programs
-func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
+// TODO feature auto commit on test pass
+func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []string, err error) {
 	changes, err := str.gitCmd.Diff()
 	if err != nil {
-		return nil, err
+		return
 	}
 	if len(changes) == 0 {
 		// no changes to test
-		return nil, nil
+		return
 	}
 	// TODO to not run if changes are same, cache prev run
-	changedBlocks, err := changesToFileBlocks(changes)
-	if err != nil {
-		return nil, err
+	changedBlocks, cerr := changesToFileBlocks(changes)
+	if cerr != nil {
+		err = cerr
+		return
 	}
-	moduleName, filePathToPkg, prog, err := analyzeGoCode(".")
+	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(".")
 	if err != nil {
-		return nil, err
+		err = analyzeErr
+		return
 	}
 	// TODO make analyze configurable
 	graph := cha.CallGraph(prog)
@@ -57,35 +63,56 @@ func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 				}
 				if fn.Name() == block.name && fn.Package().Pkg.Path() == fname {
 					changedNodes[graph.Nodes[fn]] = true
+					// one node is enough
+					break
 				}
 			}
 		}
 	}
 	if len(changedNodes) == 0 {
 		fmt.Println("no updated nodes found")
-		return nil, nil
+		return
 	}
 	allTests := getAllTestsInModule(moduleName, graph)
 	testsSet := map[string]bool{}
+	subTests := map[string]bool{}
+	// TODO test with subtest Groups
 	for tnode := range allTests {
 		callgraph.PathSearch(tnode, func(n *callgraph.Node) bool {
 			if changedNodes[n] {
-				// TODO support running t.Run funcstions
-				if idx := strings.IndexByte(tnode.Func.Name(), '$'); idx != -1 {
-					testsSet[tnode.Func.Name()[0:idx]] = true
-				} else {
-					testsSet[tnode.Func.Name()] = true
+				funName := tnode.Func.Name()
+				if idx := strings.IndexByte(funName, '$'); idx != -1 {
+					subTestID, err := strconv.Atoi(funName[idx+1:])
+					if err != nil {
+						fmt.Printf("subtest id parse error %+v\n", err) // output for debug
+						return true
+					}
+					funName = funName[0:idx]
+					set, ok := allSubtests[tnode.Func.Package().Pkg.Path()+"."+funName]
+					if ok && len(set) >= subTestID {
+						subTests[set[subTestID-1]] = true
+					} else {
+						fmt.Printf("[WARN] expected subtest %d of %s not found \n", subTestID, funName) // output for debug
+					}
 				}
+				testsSet[funName] = true
 				return true
 			}
 			return false
 		})
 	}
-	tests := make([]string, 0, len(testsSet))
-	for k := range testsSet {
-		tests = append(tests, k)
+	testsList = make([]string, 0, len(testsSet))
+
+	for t := range testsSet {
+		// $ for full match
+		testsList = append(testsList, t+"$")
 	}
-	return tests, nil
+
+	subTestsList = make([]string, 0, len(subTests))
+	for t := range subTests {
+		subTestsList = append(subTestsList, t)
+	}
+	return testsList, subTestsList, nil
 }
 
 // TODO configure source code analyze algorithm
@@ -104,13 +131,10 @@ func changesToFileBlocks(changes []Change) (map[string]FileInfo, error) {
 		if !ok {
 			data, err := ioutil.ReadFile(change.fpath)
 			if err != nil {
-				fmt.Printf("ReadFile %s error %+v\n", change.fpath, err) // output for debug
-
 				return nil, err
 			}
 			info, err = getFileInfo(change.fpath, data)
 			if err != nil {
-				fmt.Printf("getFileInfo %s error %+v\n", change.fpath, err) // output for debug
 				return nil, err
 			}
 			fileInfos[change.fpath] = info
@@ -150,6 +174,7 @@ func changesToFileBlocks(changes []Change) (map[string]FileInfo, error) {
 func analyzeGoCode(workDir string) (
 	moduleName string,
 	filePathToPkg map[string]string,
+	allSubtests map[string][]string,
 	prog *ssa.Program,
 	err error,
 ) {
@@ -176,13 +201,49 @@ func analyzeGoCode(workDir string) (
 		err = errors.New("analyzeGoCode error")
 		return
 	}
+	allSubtests = map[string][]string{}
 	moduleName = pkgs[0].ID
-	for i := 1; i < len(pkgs); i++ {
+	for i := 0; i < len(pkgs); i++ {
 		pkg := pkgs[i]
 		if len(moduleName) > len(pkg.ID) {
 			moduleName = pkg.ID
 		}
+		// find all sub tests
+		for _, astf := range pkg.Syntax {
+			for i := range astf.Decls {
+				fun, ok := astf.Decls[i].(*ast.FuncDecl)
+				if !ok {
+					continue
+				}
+				if !strings.HasPrefix(fun.Name.Name, "Test") {
+					continue
+				}
+				ast.Inspect(fun.Body, func(n ast.Node) bool {
+					callExpr, ok := n.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+
+					calleeName, err := fnNameFromCallExpr(callExpr)
+					if err != nil || calleeName != "t.Run" {
+						return true
+					}
+
+					for i := range callExpr.Args {
+						if lit, ok := callExpr.Args[i].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+							id := pkg.PkgPath + "." + fun.Name.Name
+							allSubtests[id] = append(allSubtests[id],
+								strings.ReplaceAll(lit.Value[1:len(lit.Value)-1], " ", "_"))
+						}
+					}
+
+					return true
+				})
+			}
+		}
+
 	}
+
 	filePathToPkg = map[string]string{}
 	for _, pkg := range pkgs {
 		path := pkg.PkgPath

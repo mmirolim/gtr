@@ -24,7 +24,7 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 	if !strings.HasSuffix(fname, ".go") {
 		return "", ErrUnsupportedType
 	}
-	tests, err := tr.strategy.TestsToRun()
+	tests, subTests, err := tr.strategy.TestsToRun()
 	if err != nil {
 		return "", fmt.Errorf("strategy error %v", err)
 	}
@@ -32,17 +32,21 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 		return "no test found to run", nil
 	}
 
-	printTestNames(tests)
+	printStrList("Tests to run", tests)
+	printStrList("Subtests to run", subTests)
 
 	testNames := strings.Join(tests, "|")
+	subTestNames := "(" + strings.Join(subTests, "|") + ")"
 	// run tests
 	// do not wait process to finish
 	// in case of console blocking programs
 	// -vet=off to improve speed
+	// TODO if all test in same package, run only it
 	cmd := newCmd("go", []string{
 		"test", "-v", "-vet", "off", "-run",
-		testNames, "./...", "-args", tr.args,
+		testNames + "/" + subTestNames, "./...", "-args", tr.args,
 	})
+	fmt.Println(">>", strings.Join(cmd.Args, " "))
 	err = cmd.Start()
 	if err != nil {
 		return
@@ -71,8 +75,8 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 	return msg, nil
 }
 
-func printTestNames(tests []string) {
-	fmt.Println("=============\nTests to run") // output for debug
+func printStrList(title string, tests []string) {
+	fmt.Printf("\n=============\n%s\n", title) // output for debug
 	for i := range tests {
 		fmt.Printf("-> %+v\n", tests[i]) // output for debug
 	}
