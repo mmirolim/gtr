@@ -147,13 +147,24 @@ func changesToFileBlocks(changes []Change) (map[string]FileInfo, error) {
 
 		// expect blocks sorted by start line
 		for _, block := range info.blocks {
-			start := change.start
-			end := change.count + change.start
-			if start == 0 && end == 0 {
+			if change.start == 0 && change.count == 0 {
 				// new untracked file
 				changeInfo.blocks = append(changeInfo.blocks, block)
 				continue
 			}
+
+			start := change.start
+			end := change.count + change.start
+			// reduce falls change
+			if start+2 < end {
+				start++
+				end = end - 2
+			}
+			if block.start != block.end {
+				// not one liner, skip last line with }, le
+				block.end--
+			}
+
 			if end < block.start {
 				break
 			}
