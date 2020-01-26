@@ -25,6 +25,7 @@ type GitDiffStrategy struct {
 
 // TODO test on different modules and Gopath version
 // TODO work with helper funcs and t.Run funcs subtests
+// TODO test with Vendored programs
 func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 	changes, err := str.gitCmd.Diff()
 	if err != nil {
@@ -64,9 +65,7 @@ func (str *GitDiffStrategy) TestsToRun() ([]string, error) {
 		fmt.Println("no updated nodes found")
 		return nil, nil
 	}
-	// allNodesExceptTests
-	_, allTests, _ := mapEntitiesToTests(moduleName, graph)
-
+	allTests := getAllTestsInModule(moduleName, graph)
 	testsSet := map[string]bool{}
 	for tnode := range allTests {
 		callgraph.PathSearch(tnode, func(n *callgraph.Node) bool {
@@ -202,14 +201,10 @@ func analyzeGoCode(workDir string) (
 	return
 }
 
-func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) (
-	allNodesExceptTests map[string]*callgraph.Node,
+func getAllTestsInModule(moduleName string, graph *callgraph.Graph) (
 	allTests map[*callgraph.Node]bool,
-	nodesToTest map[string]map[*callgraph.Node]bool,
 ) {
-	allNodesExceptTests = map[string]*callgraph.Node{}
 	allTests = map[*callgraph.Node]bool{}
-	nodesToTest = map[string]map[*callgraph.Node]bool{}
 	for k := range graph.Nodes {
 		if k == nil || k.Package() == nil ||
 			!strings.HasPrefix(k.Package().Pkg.Path(), moduleName) {
@@ -221,48 +216,6 @@ func mapEntitiesToTests(moduleName string, graph *callgraph.Graph) (
 			(strings.Contains(nodeType, "*testing.T") ||
 				strings.Contains(nodeType, "*testing.M")) {
 			allTests[graph.Nodes[k]] = true
-			testFuncNode := graph.Nodes[k]
-			for _, edge := range testFuncNode.Out {
-				fun := edge.Callee.Func
-				path := fun.Package().Pkg.Path()
-				nodeName := edge.Callee.Func.Name()
-				if fun.Signature.Recv() != nil {
-					// method
-					path = fun.Signature.Recv().Type().String()
-					if path[0] == '*' { // pointer type
-						path = path[1:]
-					}
-					// store all Test for Type method as test for a Type
-					tests, ok := nodesToTest[path]
-					if !ok {
-						tests = map[*callgraph.Node]bool{}
-						nodesToTest[path] = tests
-					}
-					// TODO no need to store A -> methods test mapping, track only methods change
-					tests[edge.Caller] = true
-				}
-
-				nodeName = path + "." + nodeName
-				tests, ok := nodesToTest[nodeName]
-				if !ok {
-					tests = map[*callgraph.Node]bool{}
-					nodesToTest[nodeName] = tests
-				}
-
-				tests[edge.Caller] = true
-			}
-		} else {
-			path := k.Package().Pkg.Path()
-			fun := graph.Nodes[k].Func
-			if fun.Signature.Recv() != nil {
-				// method
-				path = fun.Signature.Recv().Type().String()
-				if path[0] == '*' { // pointer type
-					path = path[1:]
-				}
-			}
-			nodeName := path + "." + fun.Name()
-			allNodesExceptTests[nodeName] = graph.Nodes[k]
 		}
 	}
 	return
