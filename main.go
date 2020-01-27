@@ -16,6 +16,7 @@ var (
 	excludeDirs     = flag.String("exclude-dir", "vendor,node_modules", "prefixes to exclude sep by comma")
 )
 
+// TODO output to stdout with gtr prefix
 func main() {
 	flag.Parse()
 	cmd := exec.Command("git", "status")
@@ -26,8 +27,7 @@ func main() {
 	}
 	debug = *showDebug
 	workDir := "."
-	gitcmd := NewGitCMD(workDir)
-	diffStrategy := NewGitDiffStrategy(gitcmd)
+	diffStrategy := NewGitDiffStrategy(workDir)
 	notifier := NewDesktopNotificator(true, 2000)
 	testRunner := NewGoTestRunner(
 		diffStrategy,
@@ -51,4 +51,12 @@ func splitStr(str, sep string) []string {
 		out[i] = strings.Trim(out[i], " ")
 	}
 	return out
+}
+
+func GitCmdFactory(workDir string) func(args ...string) error {
+	return func(args ...string) error {
+		gitCmd := exec.Command("git", "-C", workDir)
+		gitCmd.Args = append(gitCmd.Args, args...)
+		return gitCmd.Run()
+	}
 }

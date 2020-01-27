@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/token"
 	"io/ioutil"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -25,15 +26,26 @@ type Strategy interface {
 var _ Strategy = (*GitDiffStrategy)(nil)
 
 type GitDiffStrategy struct {
-	gitCmd *GitCMD
+	workDir string
+	gitCmd  *GitCMD
+}
+
+// TODO configure source code analyze algorithm
+func NewGitDiffStrategy(workDir string) *GitDiffStrategy {
+	return &GitDiffStrategy{
+		workDir: workDir,
+		gitCmd:  NewGitCMD(workDir),
+	}
 }
 
 // TODO test on different modules and Gopath version
 // TODO feature auto commit on test pass
 // TODO configure analyze strategy, parsing/pointer analyzes
-func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []string, err error) {
-	changes, err := str.gitCmd.Diff()
+// TODO improve performance, TestsToRun testing takes more than 2s
+func (gds *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []string, err error) {
+	changes, err := gds.gitCmd.Diff()
 	if err != nil {
+		err = fmt.Errorf("gitCmd.Diff error %s", err)
 		return
 	}
 	// filter out none go files
@@ -50,18 +62,36 @@ func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []str
 		// no changes to test
 		return
 	}
-	// TODO to not run if changes are same, cache prev run
-	changedBlocks, cerr := changesToFileBlocks(changes)
-	if cerr != nil {
-		err = cerr
-		return
-	}
-	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(".")
-	if analyzeErr != nil {
-		err = analyzeErr
-		return
+	var fdata []byte
+	fileInfos := map[string]FileInfo{}
+	for _, change := range changes {
+		info, ok := fileInfos[change.fpath]
+		if !ok {
+			fdata, err = ioutil.ReadFile(filepath.Join(gds.workDir, change.fpath))
+			if err != nil {
+				err = fmt.Errorf("TestsToRun ReadFile error %s", err)
+				return
+			}
+			info, err = getFileInfo(change.fpath, fdata)
+			if err != nil {
+				err = fmt.Errorf("getFileInfo error %s", err)
+				return
+			}
+			fileInfos[change.fpath] = info
+		}
 	}
 
+	// TODO to not run if changes are same, cache prev run
+	changedBlocks, cerr := changesToFileBlocks(changes, fileInfos)
+	if cerr != nil {
+		err = fmt.Errorf("changesToFileBlocks error %s", cerr)
+		return
+	}
+	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(gds.workDir)
+	if analyzeErr != nil {
+		err = fmt.Errorf("analyzeGoCode error %s", analyzeErr)
+		return
+	}
 	// TODO make analyze configurable
 	graph := cha.CallGraph(prog)
 	// find nodes from changed blocks
@@ -112,13 +142,12 @@ func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []str
 			return false
 		})
 	}
-	testsList = make([]string, 0, len(testsSet))
 
+	testsList = make([]string, 0, len(testsSet))
 	for t := range testsSet {
 		// $ for full match
 		testsList = append(testsList, t+"$")
 	}
-
 	subTestsList = make([]string, 0, len(subTests))
 	for t := range subTests {
 		subTestsList = append(subTestsList, t)
@@ -126,29 +155,13 @@ func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []str
 	return testsList, subTestsList, nil
 }
 
-// TODO configure source code analyze algorithm
-func NewGitDiffStrategy(cmd *GitCMD) *GitDiffStrategy {
-	return &GitDiffStrategy{
-		gitCmd: cmd,
-	}
-}
-
-func changesToFileBlocks(changes []Change) (map[string]FileInfo, error) {
+func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[string]FileInfo, error) {
 	changedBlocks := map[string]FileInfo{}
-	fileInfos := map[string]FileInfo{}
 	// process all changes
 	for _, change := range changes {
 		info, ok := fileInfos[change.fpath]
 		if !ok {
-			data, err := ioutil.ReadFile(change.fpath)
-			if err != nil {
-				return nil, err
-			}
-			info, err = getFileInfo(change.fpath, data)
-			if err != nil {
-				return nil, err
-			}
-			fileInfos[change.fpath] = info
+			return nil, errors.New("missing FileInfo of " + change.fpath)
 		}
 		changeInfo, ok := changedBlocks[change.fpath]
 		if !ok {
@@ -194,6 +207,7 @@ func changesToFileBlocks(changes []Change) (map[string]FileInfo, error) {
 	return changedBlocks, nil
 }
 
+// TODO do not print errors, just return it
 func analyzeGoCode(workDir string) (
 	moduleName string,
 	filePathToPkg map[string]string,
@@ -205,7 +219,6 @@ func analyzeGoCode(workDir string) (
 		Dir: workDir,
 		Mode: packages.NeedName |
 			packages.NeedFiles |
-			packages.NeedCompiledGoFiles |
 			packages.NeedSyntax |
 			packages.NeedImports |
 			packages.NeedDeps |
@@ -214,15 +227,21 @@ func analyzeGoCode(workDir string) (
 			packages.NeedTypesInfo,
 		Tests: true,
 	}
+
+	//TODO test without packages.NeedCompiledGoFiles |
 	var pkgs []*packages.Package
 	// find all packages
-	pkgs, err = packages.Load(cfg, "./...")
+	pkgs, err = packages.Load(cfg, workDir+"/...")
 	if err != nil {
 		return
 	}
-	if packages.PrintErrors(pkgs) > 0 {
-		err = errors.New("analyzeGoCode error")
-		return
+	for i := range pkgs {
+		if len(pkgs[i].Errors) > 0 {
+			fmt.Println("Module build failed\n>>>>>>>>>>>>>>>>>")
+			packages.PrintErrors(pkgs)
+			fmt.Println(">>>>>>>>>>>>>>>>>")
+			return
+		}
 	}
 	allSubtests = map[string][]string{}
 	moduleName = pkgs[0].ID
@@ -267,9 +286,14 @@ func analyzeGoCode(workDir string) (
 
 	}
 
+	// TODO test without go mod, in GOPATH
 	filePathToPkg = map[string]string{}
 	for _, pkg := range pkgs {
 		path := pkg.PkgPath
+		if !strings.HasPrefix(path, moduleName) {
+			// skip none module packages
+			continue
+		}
 		for _, file := range pkg.GoFiles {
 			lid := strings.LastIndexByte(file, '/')
 			if moduleName == path {
