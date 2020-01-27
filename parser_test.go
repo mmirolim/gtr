@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -180,17 +181,15 @@ func AreaRect(d, h int) int {
 `)
 
 func TestGetDiff(t *testing.T) {
-	const testGetDiff = "test_get_diff"
-	tempDir := os.TempDir()
-	newTestDir := tempDir + "/" + testGetDiff
-	fileFullName := func(fname string) string {
-		return newTestDir + "/" + fname
+	testDir := filepath.Join(os.TempDir(), "test_get_diff")
+	filePath := func(fname string) string {
+		return filepath.Join(testDir, fname)
 	}
 	var gitOut bytes.Buffer
 
 	gitCmdRun := func(args ...string) error {
 		gitOut.Reset()
-		gitCmd := exec.Command("git", "-C", newTestDir)
+		gitCmd := exec.Command("git", "-C", testDir)
 		gitCmd.Stdout = &gitOut
 		gitCmd.Args = append(gitCmd.Args, args...)
 		err := gitCmd.Run()
@@ -200,8 +199,8 @@ func TestGetDiff(t *testing.T) {
 		return nil
 	}
 	setup := func() {
-		_ = os.RemoveAll(newTestDir)
-		err := os.Mkdir(newTestDir, 0700)
+		_ = os.RemoveAll(testDir)
+		err := os.Mkdir(testDir, 0700)
 		if err != nil {
 			t.Fatalf("setup Mkdir error %s", err)
 		}
@@ -210,7 +209,7 @@ func TestGetDiff(t *testing.T) {
 		if err != nil {
 			t.Fatalf("setup git init error %s", err)
 		}
-		err = ioutil.WriteFile(newTestDir+"/main.go", maingo, 0600)
+		err = ioutil.WriteFile(filePath("main.go"), maingo, 0600)
 		if err != nil {
 			t.Fatalf("setup main.go write error %v", err)
 		}
@@ -227,7 +226,7 @@ func TestGetDiff(t *testing.T) {
 	tearDown := func() {
 		if !t.Failed() {
 			// clean tmp dir on test success
-			_ = os.RemoveAll(newTestDir)
+			_ = os.RemoveAll(testDir)
 		}
 	}
 
@@ -246,15 +245,15 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Add new file, math.go, geo.go, math_test.go",
 			setup: func(desc string) error {
-				err := ioutil.WriteFile(fileFullName("math.go"), mathgo, 0600)
+				err := ioutil.WriteFile(filePath("math.go"), mathgo, 0600)
 				if err != nil {
 					return err
 				}
-				err = ioutil.WriteFile(fileFullName("geo.go"), geogo, 0600)
+				err = ioutil.WriteFile(filePath("geo.go"), geogo, 0600)
 				if err != nil {
 					return err
 				}
-				return ioutil.WriteFile(fileFullName("math_test.go"), math_test_go, 0600)
+				return ioutil.WriteFile(filePath("math_test.go"), math_test_go, 0600)
 			},
 			tearDown: func(desc string) error {
 				err := gitCmdRun("add", "math.go")
@@ -276,7 +275,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Delete old file main.go",
 			setup: func(desc string) error {
-				return os.Remove(fileFullName("main.go"))
+				return os.Remove(filePath("main.go"))
 			},
 			tearDown: func(desc string) error {
 				return gitCmdRun("commit", "-am", desc)
@@ -287,7 +286,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Change untracked file geo.go, add func Area",
 			setup: func(desc string) error {
-				return ioutil.WriteFile(fileFullName("geo.go"), geo_add_area, 0600)
+				return ioutil.WriteFile(filePath("geo.go"), geo_add_area, 0600)
 			},
 			tearDown: func(desc string) error {
 				return nil
@@ -313,11 +312,11 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Update file math.go with new func max with test",
 			setup: func(desc string) error {
-				err := ioutil.WriteFile(fileFullName("math.go"), mathgo_add_func, 0600)
+				err := ioutil.WriteFile(filePath("math.go"), mathgo_add_func, 0600)
 				if err != nil {
 					return err
 				}
-				return ioutil.WriteFile(fileFullName("math_test.go"), math_test_go_test_max, 0600)
+				return ioutil.WriteFile(filePath("math_test.go"), math_test_go_test_max, 0600)
 			},
 			tearDown: func(desc string) error {
 				return gitCmdRun("commit", "-am", desc)
@@ -328,7 +327,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Update file math.go, update func min",
 			setup: func(desc string) error {
-				return ioutil.WriteFile(fileFullName("math.go"), mathgo_update_min_func, 0600)
+				return ioutil.WriteFile(filePath("math.go"), mathgo_update_min_func, 0600)
 			},
 			tearDown: func(desc string) error {
 				return gitCmdRun("commit", "-am", desc)
@@ -339,7 +338,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Multiple updates to file math.go",
 			setup: func(desc string) error {
-				return ioutil.WriteFile(fileFullName("math.go"),
+				return ioutil.WriteFile(filePath("math.go"),
 					mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
 			},
 			tearDown: func(desc string) error {
@@ -351,7 +350,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Change func name in file geo.go",
 			setup: func(desc string) error {
-				return ioutil.WriteFile(fileFullName("geo.go"), geo_area_func_rename, 0600)
+				return ioutil.WriteFile(filePath("geo.go"), geo_area_func_rename, 0600)
 			},
 			tearDown: func(desc string) error {
 				return nil
@@ -370,7 +369,7 @@ func TestGetDiff(t *testing.T) {
 			t.FailNow()
 		}
 		// should get line numbers by file and namespace
-		output, err := GetDiff(newTestDir)
+		output, err := GetDiff(testDir)
 		if err != nil {
 			errOut = err.Error()
 		}
@@ -412,8 +411,8 @@ index 7268a75..31a1203 100644
 -                       desc: "Update file math.go, change package level const and add comment",
 +                       desc: "Multiple updates to file math.go",
 @@ -343 +343,2 @@ func TestGetDiff(t *testing.T) {
--                               return ioutil.WriteFile(fileFullName("math.go"), mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
-+                               return ioutil.WriteFile(fileFullName("math.go"),
+-                               return ioutil.WriteFile(filePath("math.go"), mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
++                               return ioutil.WriteFile(filePath("math.go"),
 +                                       mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
 @@ -349 +350 @@ func TestGetDiff(t *testing.T) {
 -                       output:      []Change{{"math.go", 1, 9}},
