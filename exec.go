@@ -33,7 +33,11 @@ func (c *OsCommand) GetArgs() []string {
 }
 
 func (c *OsCommand) Success() bool {
-	return c.Cmd.ProcessState.Success()
+	// cmd maybe killed by canceled ctx
+	if c.Cmd.ProcessState != nil {
+		return c.Cmd.ProcessState.Success()
+	}
+	return false
 }
 
 func (c *OsCommand) SetStdout(wr io.Writer) {
