@@ -45,10 +45,11 @@ func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []str
 		return
 	}
 	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(".")
-	if err != nil {
+	if analyzeErr != nil {
 		err = analyzeErr
 		return
 	}
+
 	// TODO make analyze configurable
 	graph := cha.CallGraph(prog)
 	// find nodes from changed blocks
