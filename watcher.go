@@ -12,7 +12,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// TODO do not block on when run cmd exits, properly handler exits
 var debug = true
 
 type Task interface {
@@ -24,10 +23,7 @@ type NotificationService interface {
 	Send(msg string) error
 }
 
-// TODO add gnome notifications
 // TODO test passing args to test run
-// TODO define notification expire time
-// TODO add notification service
 type Watcher struct {
 	notificator         NotificationService
 	tasks               []Task
@@ -109,7 +105,6 @@ LOOP:
 			if w.skipChange(e) {
 				continue LOOP
 			}
-			// TODO improve message
 			log.Println("File changed:", e.Name)
 			// send signal to stop previous command
 			select {
@@ -124,7 +119,6 @@ LOOP:
 			//@TODO check for better solution without sleep, had some issues with flymake emacs go plugin
 			time.Sleep(w.delay)
 			// run required commands
-			// TODO previously untracked files after commit should be removed from map
 			for _, task := range w.tasks {
 				// run all tasks
 				fmt.Printf("Run task.ID %+v\n", task.ID()) // output for debug
@@ -138,7 +132,6 @@ LOOP:
 					fmt.Printf("NotificationService error  %+v\n", err)
 				}
 			}
-			// TODO on success commit changes? or update untracked file state
 			// process started incr rerun counter
 			rerunCounter++
 			// add loging

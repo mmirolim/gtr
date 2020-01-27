@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/kr/pretty"
 )
@@ -150,9 +149,6 @@ func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	return changes, serr
 }
 
-// TODO comments
-// TODO maybe use existing git-diff parsers for unified format
-// TODO do not use global states
 func GetDiff(workdir string) ([]Change, error) {
 	// TODO store hashes of new files and return untracked new files to run
 	var gitOut bytes.Buffer
@@ -192,7 +188,6 @@ type Entity struct {
 }
 
 // TODO handle rename imports
-// TODO handle methods
 // TODO handle variable resolution
 func fnNameFromCallExpr(fn *ast.CallExpr) (string, error) {
 	var fname string
@@ -225,46 +220,6 @@ func fnNameFromCallExpr(fn *ast.CallExpr) (string, error) {
 	return fname, err
 }
 
-// TODO handle other types of entities like Types, Interfaces
-// parse go test file and returns entities by Test name
-func getTestedFuncs(testFile []byte) (map[string][]Entity, error) {
-	dic := make(map[string][]Entity)
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "", testFile, parser.ParseComments)
-	if err != nil {
-		return dic, err
-	}
-	// TODO need to parse each FuncDecl and Typespec
-	// not everything in scope
-	for k, v := range f.Scope.Objects {
-		funcDecl, ok := v.Decl.(*ast.FuncDecl)
-		if !ok || !strings.HasPrefix(k, "Test") {
-			continue
-		}
-		var entities []Entity
-
-		// inspect only Test funcs
-		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
-			callExpr, ok := n.(*ast.CallExpr)
-			if ok && callExpr.Fun != nil {
-				// current node is a function!
-				// func called
-				fname, err := fnNameFromCallExpr(callExpr)
-				if err == nil {
-					entities = append(entities, Entity{
-						typ:  "func", // TODO handle method
-						name: fname,
-					})
-				}
-			}
-			return true
-		})
-		dic[k] = entities
-	}
-
-	return dic, nil
-}
-
 type FileInfo struct {
 	fname, pkgName string
 	blocks         []FileBlock
@@ -274,10 +229,9 @@ type FileBlock struct {
 	start, end int // lines [start, end] from 1
 }
 
-// getFileInfo returns FileInfo struct with
+// getFileInfo returns FileInfo struct
 // with entities divided in blocks according to line position
 // blocks sorted by start line
-// TODO add Type Decl blocks
 func getFileInfo(fname string, file []byte) (FileInfo, error) {
 	var fileInfo FileInfo
 	var blocks []FileBlock

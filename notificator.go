@@ -19,7 +19,6 @@ func NewDesktopNotificator(transient bool, expireInMillisecond int) *DesktopNoti
 }
 
 func (n *DesktopNotificator) Send(msg string) error {
-	// TODO refactor, configure behavior of notifications
 	cmd := exec.Command("notify-send", "-t", n.expireTime)
 	if n.transient {
 		cmd.Args = append(cmd.Args, []string{"--hint", "int:transient:1"}...)
