@@ -171,17 +171,18 @@ func changesToFileBlocks(changes []Change) (map[string]FileInfo, error) {
 				start++
 				end = end - 2
 			}
+			blockEnd := block.end
 			if block.start != block.end {
 				// not one liner, skip last line with }, le
-				block.end--
+				blockEnd--
 			}
 
 			if end < block.start {
 				break
 			}
-			if (start >= block.start && start <= block.end) ||
-				(end >= block.start && end <= block.end) ||
-				(block.start >= start && block.end <= end) {
+			if (start >= block.start && start <= blockEnd) ||
+				(end >= block.start && end <= blockEnd) ||
+				(block.start >= start && blockEnd <= end) {
 				changeInfo.blocks = append(changeInfo.blocks, block)
 			}
 		}
