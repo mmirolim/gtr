@@ -42,7 +42,7 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("strategy error %v", err)
 	}
-	if len(tests) == 0 {
+	if len(tests) == 0 && len(subTests) == 0 {
 		return "no test found to run", nil
 	}
 
@@ -58,7 +58,9 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 
 	if tr.showTests {
 		printStrList("Tests to run", tests, true)
-		printStrList("Subtests to run", subTests, true)
+		if len(subTests) > 0 {
+			printStrList("Subtests to run", subTests, true)
+		}
 		fmt.Println(">>", strings.Join(cmd.GetArgs(), " "))
 	}
 

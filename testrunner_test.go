@@ -40,6 +40,12 @@ func TestGoTestRunnerRun(t *testing.T) {
 			"Tests FAIL: TestZ$/(b1)",
 			"",
 		},
+		{ // define only sub tests group
+			nil, true,
+			nil, []string{"group"},
+			"Tests PASS: /(group)",
+			"",
+		},
 	}
 
 	var errOut string
