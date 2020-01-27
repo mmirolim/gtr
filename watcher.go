@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -16,8 +17,15 @@ var debug = true
 
 type Task interface {
 	ID() string
-	Run(fname string, stop <-chan bool) (msg string, err error)
+	Run(ctx context.Context) (msg string, err error)
 }
+
+type TaskCtxKey string
+
+const (
+	changedFileNameKey TaskCtxKey = "changed_file_name_key"
+	prevTaskOutput     TaskCtxKey = "prev_task_output_key"
+)
 
 type NotificationService interface {
 	Send(msg string) error
@@ -25,31 +33,26 @@ type NotificationService interface {
 
 // TODO test passing args to test run
 type Watcher struct {
-	notificator         NotificationService
 	tasks               []Task
 	delay               time.Duration
 	excludeFilePrefixes []string
 	excludeDirs         []string
 	events              chan fsnotify.Event
 	errs                chan error
-	stop                chan bool
 }
 
 func NewWatcher(tasks []Task,
-	notificator NotificationService,
 	delay int,
 	excludeFilePrefixes []string,
 	excludeDirs []string,
 ) Watcher {
 	return Watcher{
-		notificator:         notificator,
 		tasks:               tasks,
 		delay:               time.Duration(delay) * time.Millisecond,
 		excludeFilePrefixes: excludeFilePrefixes,
 		excludeDirs:         excludeDirs,
 		events:              make(chan fsnotify.Event),
 		errs:                make(chan error),
-		stop:                make(chan bool),
 	}
 }
 
@@ -66,8 +69,19 @@ func (w *Watcher) Run() {
 	<-done
 }
 
-func (w *Watcher) skipChange(e fsnotify.Event) bool {
+func (w *Watcher) skipChange(
+	e fsnotify.Event,
+	lastModFile string,
+	lastModTime time.Time) bool {
 	if e.Op&fsnotify.Write != fsnotify.Write {
+		return true
+	}
+	if lastModFile == e.Name {
+		if time.Since(lastModTime) <= w.delay {
+			return true
+		}
+	}
+	if !strings.HasSuffix(e.Name, ".go") {
 		return true
 	}
 	name := path.Base(e.Name)
@@ -98,44 +112,46 @@ func (w *Watcher) skipDir(dir string) bool {
 func (w *Watcher) runTasks() {
 	// keep track of reruns
 	rerunCounter := 1
+	var ctx context.Context
+	var cancel context.CancelFunc
+	lastModTime := time.Now()
+	lastModFile := ""
 LOOP:
 	for {
 		select {
 		case e := <-w.events:
-			if w.skipChange(e) {
+			if w.skipChange(e, lastModFile, lastModTime) {
 				continue LOOP
 			}
 			log.Println("File changed:", e.Name)
-			// send signal to stop previous command
-			select {
-			case w.stop <- true:
-			default:
-				// if blocking it may prev process may be dead
-				go func() {
-					// drain stop ch
-					<-w.stop
-				}()
+			lastModFile = e.Name
+			lastModTime = time.Now()
+			if cancel != nil {
+				cancel()
 			}
-			//@TODO check for better solution without sleep, had some issues with flymake emacs go plugin
-			time.Sleep(w.delay)
-			// run required commands
-			for _, task := range w.tasks {
-				// run all tasks
-				fmt.Printf("Run task.ID %+v\n", task.ID()) // output for debug
-				msg, err := task.Run(e.Name, w.stop)
-				if err != nil {
-					fmt.Printf("Task.ID: %s returned err %+v\n", task.ID(), err) // output for debug
-					continue
+
+			ctx, cancel = context.WithCancel(
+				context.WithValue(context.Background(), changedFileNameKey, e.Name))
+			//time.Sleep(w.delay)
+			// do not block loop
+			go func() {
+				var output string
+				var err error
+				// run tasks in provided sequence
+				for _, task := range w.tasks {
+					ctx = context.WithValue(ctx, prevTaskOutput, output)
+					fmt.Printf("Run task.ID %+v\n", task.ID()) // output for debug
+					output, err = task.Run(ctx)
+					if err != nil {
+						fmt.Printf("stop pipeline Task.ID: %s returned err %+v\n", task.ID(), err) // output for debug
+						break
+					}
 				}
-				err = w.notificator.Send(msg)
-				if err != nil {
-					fmt.Printf("NotificationService error  %+v\n", err)
-				}
-			}
+				// add loging
+				w.printDebug("command executed")
+			}()
 			// process started incr rerun counter
 			rerunCounter++
-			// add loging
-			w.printDebug("command executed")
 
 		case err := <-w.errs:
 			log.Println("Error:", err)

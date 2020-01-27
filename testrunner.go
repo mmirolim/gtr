@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"sort"
 	"strings"
 )
+
+var _ Task = (*GoTestRunner)(nil)
 
 // Runs go tests
 type GoTestRunner struct {
@@ -21,10 +26,7 @@ func (tr *GoTestRunner) ID() string {
 }
 
 // TODO run tests in parallel per package?
-func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err error) {
-	if !strings.HasSuffix(fname, ".go") {
-		return "", ErrUnsupportedType
-	}
+func (tr *GoTestRunner) Run(ctx context.Context) (msg string, err error) {
 	tests, subTests, err := tr.strategy.TestsToRun()
 	if err != nil {
 		return "", fmt.Errorf("strategy error %v", err)
@@ -42,30 +44,18 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 	// in case of console blocking programs
 	// -vet=off to improve speed
 	// TODO if all test in same package, run only it
-	cmd := newCmd("go", []string{
-		"test", "-v", "-vet", "off", "-run",
+	cmd := exec.CommandContext(ctx, "go", "test", "-v", "-vet", "off", "-run",
 		testNames, "./...", "-args", tr.args,
-	})
+	)
 	fmt.Println(">>", strings.Join(cmd.Args, " "))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
+
 	err = cmd.Start()
 	if err != nil {
 		return
 	}
-	// TODO notify on test fail
-	go func() {
-		<-stop
-		if cmd.ProcessState.Exited() {
-			// already exited
-			return
-		}
-		// kill process if already running
-		// try to kill process
-		err := cmd.Process.Kill()
-		if err != nil {
-			fmt.Println("test process kill returned error" + err.Error())
-		}
-	}()
-
 	err = cmd.Wait()
 	if cmd.ProcessState.Success() {
 		msg = "Tests PASS: " + testNames

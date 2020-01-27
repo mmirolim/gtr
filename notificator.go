@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
 )
+
+var _ Task = (*DesktopNotificator)(nil)
 
 type DesktopNotificator struct {
 	transient  bool
@@ -16,6 +20,18 @@ func NewDesktopNotificator(transient bool, expireInMillisecond int) *DesktopNoti
 	notifier.transient = transient
 	notifier.expireTime = strconv.Itoa(expireInMillisecond)
 	return notifier
+}
+
+func (n *DesktopNotificator) ID() string {
+	return "DesktopNotificator"
+}
+
+func (n *DesktopNotificator) Run(ctx context.Context) (string, error) {
+	prevOut, ok := ctx.Value(prevTaskOutput).(string)
+	if !ok {
+		return "", errors.New("missing/wrong context value")
+	}
+	return "", n.Send(prevOut)
 }
 
 func (n *DesktopNotificator) Send(msg string) error {

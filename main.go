@@ -32,22 +32,12 @@ func main() {
 	testRunner := NewGoTestRunner(diffStrategy, *testBinaryArgs)
 
 	watcher := NewWatcher(
-		[]Task{testRunner},
-		notifier,
+		[]Task{testRunner, notifier},
 		*delay,
 		splitStr(*excludePrefixes, ","),
 		splitStr(*excludeDirs, ","),
 	)
 	watcher.Run()
-}
-
-// create new cmd, pass env and attache stdout, stderr
-func newCmd(bin string, args []string) *exec.Cmd {
-	cmd := exec.Command(bin, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
-	return cmd
 }
 
 func splitStr(str, sep string) []string {
