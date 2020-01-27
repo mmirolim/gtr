@@ -30,6 +30,7 @@ type GitDiffStrategy struct {
 // TODO work with helper funcs and t.Run funcs subtests
 // TODO test with Vendored programs
 // TODO feature auto commit on test pass
+// TODO configure analyze strategy, parsing/pointer analyzes
 func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []string, err error) {
 	changes, err := str.gitCmd.Diff()
 	if err != nil {

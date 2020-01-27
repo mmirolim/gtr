@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -32,11 +33,10 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 		return "no test found to run", nil
 	}
 
-	printStrList("Tests to run", tests)
-	printStrList("Subtests to run", subTests)
+	printStrList("Tests to run", tests, true)
+	printStrList("Subtests to run", subTests, true)
 
-	testNames := strings.Join(tests, "|")
-	subTestNames := "(" + strings.Join(subTests, "|") + ")"
+	testNames := tr.joinTestAndSubtest(tests, subTests)
 	// run tests
 	// do not wait process to finish
 	// in case of console blocking programs
@@ -44,7 +44,7 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 	// TODO if all test in same package, run only it
 	cmd := newCmd("go", []string{
 		"test", "-v", "-vet", "off", "-run",
-		testNames + "/" + subTestNames, "./...", "-args", tr.args,
+		testNames, "./...", "-args", tr.args,
 	})
 	fmt.Println(">>", strings.Join(cmd.Args, " "))
 	err = cmd.Start()
@@ -75,10 +75,26 @@ func (tr *GoTestRunner) Run(fname string, stop <-chan bool) (msg string, err err
 	return msg, nil
 }
 
-func printStrList(title string, tests []string) {
+func (tr *GoTestRunner) joinTestAndSubtest(tests, subTests []string) string {
+	out := strings.Join(tests, "|")
+	if len(subTests) != 0 {
+		out += "/(" + strings.Join(subTests, "|") + ")"
+	}
+	return out
+}
+
+func printStrList(title string, tests []string, toSort bool) {
+	var out []string
+	if toSort {
+		out = make([]string, len(tests))
+		copy(out[0:], tests)
+		sort.Strings(out)
+	} else {
+		out = tests
+	}
 	fmt.Printf("\n=============\n%s\n", title) // output for debug
-	for i := range tests {
-		fmt.Printf("-> %+v\n", tests[i]) // output for debug
+	for i := range out {
+		fmt.Printf("-> %+v\n", out[i]) // output for debug
 	}
 	fmt.Println("=============")
 }
