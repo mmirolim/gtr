@@ -6,7 +6,6 @@ import (
 	"go/ast"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -185,42 +184,15 @@ func TestGetDiff(t *testing.T) {
 	filePath := func(fname string) string {
 		return filepath.Join(testDir, fname)
 	}
-	var gitOut bytes.Buffer
-
-	gitCmdRun := func(args ...string) error {
-		gitOut.Reset()
-		gitCmd := exec.Command("git", "-C", testDir)
-		gitCmd.Stdout = &gitOut
-		gitCmd.Args = append(gitCmd.Args, args...)
-		err := gitCmd.Run()
-		if err != nil {
-			return err
-		}
-		return nil
+	files := map[string][]byte{
+		"main.go": maingo,
 	}
+	gitCmdRun := GitCmdFactory(testDir)
 	setup := func() {
-		_ = os.RemoveAll(testDir)
-		err := os.Mkdir(testDir, 0700)
-		if err != nil {
-			t.Fatalf("setup Mkdir error %s", err)
-		}
-		// init git
-		err = gitCmdRun("init")
-		if err != nil {
-			t.Fatalf("setup git init error %s", err)
-		}
-		err = ioutil.WriteFile(filePath("main.go"), maingo, 0600)
-		if err != nil {
-			t.Fatalf("setup main.go write error %v", err)
-		}
-		err = gitCmdRun("add", "main.go")
-		if err != nil {
-			t.Fatalf("setup git add main.go %v", err)
-		}
-		err = gitCmdRun("commit", "-m", "add main.go")
-		if err != nil {
-			t.Fatalf("setup git commit main.go %v", err)
-		}
+		setupTestGitDir(t,
+			testDir, files,
+			[]string{"main.go"},
+		)
 	}
 
 	tearDown := func() {
@@ -237,14 +209,14 @@ func TestGetDiff(t *testing.T) {
 	// cases
 	cases := []struct {
 		desc            string
-		setup, tearDown func(desc string) error
+		setup, tearDown func() error
 		output          []Change
 		expectedErr     string
 	}{
 		// TODO describe expected behavior
 		{
 			desc: "Add new file, math.go, geo.go, math_test.go",
-			setup: func(desc string) error {
+			setup: func() error {
 				err := ioutil.WriteFile(filePath("math.go"), mathgo, 0600)
 				if err != nil {
 					return err
@@ -255,7 +227,7 @@ func TestGetDiff(t *testing.T) {
 				}
 				return ioutil.WriteFile(filePath("math_test.go"), math_test_go, 0600)
 			},
-			tearDown: func(desc string) error {
+			tearDown: func() error {
 				err := gitCmdRun("add", "math.go")
 				if err != nil {
 					return err
@@ -264,7 +236,7 @@ func TestGetDiff(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				return gitCmdRun("commit", "-m", desc)
+				return gitCmdRun("commit", "-m", "add files")
 			},
 			expectedErr: "",
 			output: []Change{
@@ -274,87 +246,81 @@ func TestGetDiff(t *testing.T) {
 		},
 		{
 			desc: "Delete old file main.go",
-			setup: func(desc string) error {
+			setup: func() error {
 				return os.Remove(filePath("main.go"))
 			},
-			tearDown: func(desc string) error {
-				return gitCmdRun("commit", "-am", desc)
+			tearDown: func() error {
+				return gitCmdRun("commit", "-am", "changes")
 			},
 			expectedErr: "",
 			output:      []Change{{"geo.go", "geo.go", 0, 0}},
 		},
 		{
 			desc: "Change untracked file geo.go, add func Area",
-			setup: func(desc string) error {
+			setup: func() error {
 				return ioutil.WriteFile(filePath("geo.go"), geo_add_area, 0600)
 			},
-			tearDown: func(desc string) error {
-				return nil
-			},
+			tearDown:    nil,
 			expectedErr: "",
 			output:      []Change{{"geo.go", "geo.go", 0, 0}},
 		},
 		{
 			desc: "Commit untracked file geo.go",
-			setup: func(desc string) error {
+			setup: func() error {
 				err := gitCmdRun("add", "geo.go")
 				if err != nil {
 					return err
 				}
-				return gitCmdRun("commit", "-m", desc)
+				return gitCmdRun("commit", "-m", "add geo.go")
 			},
-			tearDown: func(desc string) error {
-				return nil
-			},
+			tearDown:    nil,
 			expectedErr: "",
 			output:      nil,
 		},
 		{
 			desc: "Update file math.go with new func max with test",
-			setup: func(desc string) error {
+			setup: func() error {
 				err := ioutil.WriteFile(filePath("math.go"), mathgo_add_func, 0600)
 				if err != nil {
 					return err
 				}
 				return ioutil.WriteFile(filePath("math_test.go"), math_test_go_test_max, 0600)
 			},
-			tearDown: func(desc string) error {
-				return gitCmdRun("commit", "-am", desc)
+			tearDown: func() error {
+				return gitCmdRun("commit", "-am", "changes")
 			},
 			expectedErr: "",
 			output:      []Change{{"math.go", "math.go", 12, 10}, {"math_test.go", "math_test.go", 7, 10}},
 		},
 		{
 			desc: "Update file math.go, update func min",
-			setup: func(desc string) error {
+			setup: func() error {
 				return ioutil.WriteFile(filePath("math.go"), mathgo_update_min_func, 0600)
 			},
-			tearDown: func(desc string) error {
-				return gitCmdRun("commit", "-am", desc)
+			tearDown: func() error {
+				return gitCmdRun("commit", "-am", "changes")
 			},
 			expectedErr: "",
 			output:      []Change{{"math.go", "math.go", 2, 7}, {"math.go", "math.go", 10, 12}},
 		},
 		{
 			desc: "Multiple updates to file math.go",
-			setup: func(desc string) error {
+			setup: func() error {
 				return ioutil.WriteFile(filePath("math.go"),
 					mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
 			},
-			tearDown: func(desc string) error {
-				return gitCmdRun("commit", "-am", desc)
+			tearDown: func() error {
+				return gitCmdRun("commit", "-am", "changes")
 			},
 			expectedErr: "",
 			output:      []Change{{"math.go", "math.go", 1, 9}, {"math.go", "math.go", 16, 8}},
 		},
 		{
 			desc: "Change func name in file geo.go",
-			setup: func(desc string) error {
+			setup: func() error {
 				return ioutil.WriteFile(filePath("geo.go"), geo_area_func_rename, 0600)
 			},
-			tearDown: func(desc string) error {
-				return nil
-			},
+			tearDown:    nil,
 			expectedErr: "",
 			output:      []Change{{"geo.go", "geo.go", 5, 6}},
 		},
@@ -364,20 +330,18 @@ func TestGetDiff(t *testing.T) {
 	var errOut string
 	for i, tc := range cases {
 		errOut = ""
-		if err := tc.setup(tc.desc); err != nil {
-			t.Errorf("case [%d] %s\nsetup failed, unexpected error %v", i, tc.desc, err)
-			t.FailNow()
-		}
+		// setup()
+		execTestHelper(t, i, tc.desc, tc.setup)
+
 		// should get line numbers by file and namespace
 		output, err := GetDiff(testDir)
 		if err != nil {
 			errOut = err.Error()
 		}
-		err = tc.tearDown(tc.desc)
-		if err != nil {
-			t.Errorf("case [%d] %s\ntearDown failed unexpected error %v", i, tc.desc, err)
-			t.FailNow()
-		}
+
+		// teardown()
+		execTestHelper(t, i, tc.desc, tc.tearDown)
+
 		if errOut != tc.expectedErr {
 			t.Errorf("case [%d] %s\nexpected error %v\ngot %v", i, tc.desc, tc.expectedErr, errOut)
 			continue

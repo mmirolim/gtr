@@ -240,6 +240,7 @@ func analyzeGoCode(workDir string) (
 			fmt.Println("Module build failed\n>>>>>>>>>>>>>>>>>")
 			packages.PrintErrors(pkgs)
 			fmt.Println(">>>>>>>>>>>>>>>>>")
+			err = errors.New("packages.Load error")
 			return
 		}
 	}
