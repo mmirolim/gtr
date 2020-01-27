@@ -74,9 +74,8 @@ func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []str
 					continue
 				}
 				if fn.Name() == block.name && fn.Package().Pkg.Path() == fname {
+					// store all nodes
 					changedNodes[graph.Nodes[fn]] = true
-					// one node is enough
-					break
 				}
 			}
 		}
