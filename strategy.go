@@ -36,6 +36,16 @@ func (str *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []str
 	if err != nil {
 		return
 	}
+	// filter out none go files
+	n := 0
+	for _, x := range changes {
+		if strings.HasSuffix(x.fpath, ".go") {
+			changes[n] = x
+			n++
+		}
+
+	}
+	changes = changes[:n]
 	if len(changes) == 0 {
 		// no changes to test
 		return
