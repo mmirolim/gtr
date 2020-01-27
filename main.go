@@ -29,7 +29,12 @@ func main() {
 	gitcmd := NewGitCMD(workDir)
 	diffStrategy := NewGitDiffStrategy(gitcmd)
 	notifier := NewDesktopNotificator(true, 2000)
-	testRunner := NewGoTestRunner(diffStrategy, *testBinaryArgs)
+	testRunner := NewGoTestRunner(
+		diffStrategy,
+		NewOsCommand,
+		*testBinaryArgs,
+		true,
+	)
 
 	watcher := NewWatcher(
 		[]Task{testRunner, notifier},

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 )
@@ -13,12 +12,24 @@ var _ Task = (*GoTestRunner)(nil)
 
 // Runs go tests
 type GoTestRunner struct {
-	strategy Strategy
-	args     string
+	strategy  Strategy
+	cmd       CommandCreator
+	args      string
+	showTests bool
 }
 
-func NewGoTestRunner(strategy Strategy, args string) *GoTestRunner {
-	return &GoTestRunner{strategy, args}
+func NewGoTestRunner(
+	strategy Strategy,
+	cmd CommandCreator,
+	args string,
+	showTests bool,
+) *GoTestRunner {
+	return &GoTestRunner{
+		strategy:  strategy,
+		cmd:       cmd,
+		args:      args,
+		showTests: showTests,
+	}
 }
 
 func (tr *GoTestRunner) ID() string {
@@ -26,7 +37,7 @@ func (tr *GoTestRunner) ID() string {
 }
 
 // TODO run tests in parallel per package?
-func (tr *GoTestRunner) Run(ctx context.Context) (msg string, err error) {
+func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	tests, subTests, err := tr.strategy.TestsToRun()
 	if err != nil {
 		return "", fmt.Errorf("strategy error %v", err)
@@ -35,31 +46,29 @@ func (tr *GoTestRunner) Run(ctx context.Context) (msg string, err error) {
 		return "no test found to run", nil
 	}
 
-	printStrList("Tests to run", tests, true)
-	printStrList("Subtests to run", subTests, true)
-
 	testNames := tr.joinTestAndSubtest(tests, subTests)
 	// run tests
 	// do not wait process to finish
 	// in case of console blocking programs
 	// -vet=off to improve speed
 	// TODO if all test in same package, run only it
-	cmd := exec.CommandContext(ctx, "go", "test", "-v", "-vet", "off", "-run",
+	cmd := tr.cmd(ctx, "go", "test", "-v", "-vet", "off", "-run",
 		testNames, "./...", "-args", tr.args,
 	)
-	fmt.Println(">>", strings.Join(cmd.Args, " "))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = os.Environ()
 
-	err = cmd.Start()
-	if err != nil {
-		return
+	if tr.showTests {
+		printStrList("Tests to run", tests, true)
+		printStrList("Subtests to run", subTests, true)
+		fmt.Println(">>", strings.Join(cmd.GetArgs(), " "))
 	}
-	err = cmd.Wait()
-	if cmd.ProcessState.Success() {
-		msg = "Tests PASS: " + testNames
-	} else {
+
+	cmd.SetStdout(os.Stdout)
+	cmd.SetStderr(os.Stderr)
+	cmd.SetEnv(os.Environ())
+
+	err = cmd.Run()
+	msg := "Tests PASS: " + testNames
+	if !cmd.Success() {
 		msg = "Tests FAIL: " + testNames
 	}
 	return msg, nil

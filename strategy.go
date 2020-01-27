@@ -22,6 +22,8 @@ type Strategy interface {
 	TestsToRun() (tests []string, subTests []string, err error)
 }
 
+var _ Strategy = (*GitDiffStrategy)(nil)
+
 type GitDiffStrategy struct {
 	gitCmd *GitCMD
 }
