@@ -31,11 +31,11 @@ func (n *DesktopNotificator) Run(ctx context.Context) (string, error) {
 	if !ok {
 		return "", errors.New("missing/wrong context value")
 	}
-	return "", n.Send(prevOut)
+	return "", n.Send(ctx, prevOut)
 }
 
-func (n *DesktopNotificator) Send(msg string) error {
-	cmd := exec.Command("notify-send", "-t", n.expireTime)
+func (n *DesktopNotificator) Send(ctx context.Context, msg string) error {
+	cmd := exec.CommandContext(ctx, "notify-send", "-t", n.expireTime)
 	if n.transient {
 		cmd.Args = append(cmd.Args, []string{"--hint", "int:transient:1"}...)
 	}
