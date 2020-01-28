@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 func TestWatcherAddDirs(t *testing.T) {
@@ -71,5 +74,69 @@ func TestWatcherAddDirs(t *testing.T) {
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)
 
+	}
+}
+
+func TestWatcherSkipChange(t *testing.T) {
+	cases := []struct {
+		desc                string
+		excludeFilePrefixes []string
+		event               fsnotify.Event
+		lastModTime         time.Time
+		lastModFile         string
+		expect              bool
+	}{
+
+		{
+			desc:   "new file Create event",
+			event:  fsnotify.Event{"file.go", fsnotify.Create},
+			expect: true,
+		},
+		{
+			desc:   "file.go Rename event",
+			event:  fsnotify.Event{"file.go", fsnotify.Rename},
+			expect: true,
+		},
+		{
+			desc:   "file.go Remove event",
+			event:  fsnotify.Event{"file.go", fsnotify.Remove},
+			expect: true,
+		},
+		{
+			desc:   "file.go Write event",
+			event:  fsnotify.Event{"file.go", fsnotify.Write},
+			expect: false,
+		},
+		{
+			desc:        "file Write event, updated < delay",
+			event:       fsnotify.Event{"file.go", fsnotify.Write},
+			lastModTime: time.Now().Add(-100 * time.Millisecond),
+			lastModFile: "file.go",
+			expect:      true,
+		},
+		{
+			desc:   "file.js file Write event",
+			event:  fsnotify.Event{"file.js", fsnotify.Write},
+			expect: true,
+		},
+		{
+			desc:                "prefixfile.go skipped by prefix Write event",
+			excludeFilePrefixes: []string{"prefix", "otherprefix"},
+			event:               fsnotify.Event{"prefixfile.go", fsnotify.Write},
+			lastModTime:         time.Time{},
+			lastModFile:         "file.go",
+			expect:              true,
+		},
+	}
+
+	for i, tc := range cases {
+		watcher := &Watcher{
+			delay:               1000 * time.Millisecond,
+			excludeFilePrefixes: tc.excludeFilePrefixes,
+		}
+		if watcher.skipChange(tc.event, tc.lastModFile, tc.lastModTime) != tc.expect {
+			t.Errorf("case [%d] %s\nexpected %+v\ngot %+v",
+				i, tc.desc, tc.expect, !tc.expect)
+		}
 	}
 }
