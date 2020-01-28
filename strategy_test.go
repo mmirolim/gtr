@@ -255,6 +255,8 @@ func max(a, b int) int {
 
 		testsList, subTestsList, err := gitDiffStrategy.TestsToRun()
 
+		// teardown()
+		execTestHelper(t, i, tc.desc, tc.tearDown)
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue
 		}
@@ -270,8 +272,6 @@ func max(a, b int) int {
 		if !reflect.DeepEqual(tc.outSubTests, subTestsList) {
 			t.Errorf("case [%d]\nexpected Subtests %+v\ngot %+v", i, tc.outSubTests, subTestsList)
 		}
-		// teardown()
-		execTestHelper(t, i, tc.desc, tc.tearDown)
 	}
 
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"io/ioutil"
@@ -211,7 +212,7 @@ func TestGetDiff(t *testing.T) {
 		desc            string
 		setup, tearDown func() error
 		output          []Change
-		expectedErr     string
+		expectedErr     error
 	}{
 		// TODO describe expected behavior
 		{
@@ -238,7 +239,6 @@ func TestGetDiff(t *testing.T) {
 				}
 				return gitCmdRun("commit", "-m", "add files")
 			},
-			expectedErr: "",
 			output: []Change{
 				{"geo.go", "geo.go", 0, 0},
 				{"math.go", "math.go", 0, 0},
@@ -252,17 +252,14 @@ func TestGetDiff(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
 			},
-			expectedErr: "",
-			output:      []Change{{"geo.go", "geo.go", 0, 0}},
+			output: []Change{{"geo.go", "geo.go", 0, 0}},
 		},
 		{
 			desc: "Change untracked file geo.go, add func Area",
 			setup: func() error {
 				return ioutil.WriteFile(filePath("geo.go"), geo_add_area, 0600)
 			},
-			tearDown:    nil,
-			expectedErr: "",
-			output:      []Change{{"geo.go", "geo.go", 0, 0}},
+			output: []Change{{"geo.go", "geo.go", 0, 0}},
 		},
 		{
 			desc: "Commit untracked file geo.go",
@@ -273,9 +270,8 @@ func TestGetDiff(t *testing.T) {
 				}
 				return gitCmdRun("commit", "-m", "add geo.go")
 			},
-			tearDown:    nil,
-			expectedErr: "",
-			output:      nil,
+			tearDown: nil,
+			output:   nil,
 		},
 		{
 			desc: "Update file math.go with new func max with test",
@@ -289,8 +285,7 @@ func TestGetDiff(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
 			},
-			expectedErr: "",
-			output:      []Change{{"math.go", "math.go", 12, 10}, {"math_test.go", "math_test.go", 7, 10}},
+			output: []Change{{"math.go", "math.go", 12, 10}, {"math_test.go", "math_test.go", 7, 10}},
 		},
 		{
 			desc: "Update file math.go, update func min",
@@ -300,8 +295,7 @@ func TestGetDiff(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
 			},
-			expectedErr: "",
-			output:      []Change{{"math.go", "math.go", 2, 7}, {"math.go", "math.go", 10, 12}},
+			output: []Change{{"math.go", "math.go", 2, 7}, {"math.go", "math.go", 10, 12}},
 		},
 		{
 			desc: "Multiple updates to file math.go",
@@ -312,53 +306,43 @@ func TestGetDiff(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
 			},
-			expectedErr: "",
-			output:      []Change{{"math.go", "math.go", 1, 9}, {"math.go", "math.go", 16, 8}},
+			output: []Change{{"math.go", "math.go", 1, 9}, {"math.go", "math.go", 16, 8}},
 		},
 		{
 			desc: "Change func name in file geo.go",
 			setup: func() error {
 				return ioutil.WriteFile(filePath("geo.go"), geo_area_func_rename, 0600)
 			},
-			tearDown:    nil,
-			expectedErr: "",
-			output:      []Change{{"geo.go", "geo.go", 5, 6}},
+			output: []Change{{"geo.go", "geo.go", 5, 6}},
 		},
 		// TODO add case with renaming file
 	}
 
-	var errOut string
 	for i, tc := range cases {
-		errOut = ""
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
 
 		// should get line numbers by file and namespace
 		output, err := GetDiff(testDir)
-		if err != nil {
-			errOut = err.Error()
-		}
 
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)
-
-		if errOut != tc.expectedErr {
-			t.Errorf("case [%d] %s\nexpected error %v\ngot %v", i, tc.desc, tc.expectedErr, errOut)
+		if isUnexpectedErr(t, i, tc.desc, tc.expectedErr, err) {
 			continue
 		}
-		diffs := pretty.Diff(tc.output, output)
 
+		diffs := pretty.Diff(tc.output, output)
 		if len(diffs) > 0 {
 			t.Errorf("case [%d] %s\nexpected %# v\ngot %# v", i, tc.desc, tc.output, output)
 		}
 	}
 }
 
-func Test_changesFromGitDiff(t *testing.T) {
+func TestChangesFromGitDiff(t *testing.T) {
 	cases := []struct {
 		data   string
 		output []Change
-		err    string
+		err    error
 	}{
 		{data: `diff --git a/parser.go b/parser.go
 index 6452f09..de4ce2a 100644
@@ -417,7 +401,7 @@ index d1f20de..c0bcbcd 100644
 			{fpathOld: "process_go_file.go", fpath: "process_go_file.go", start: 120, count: 0},
 			{fpathOld: "process_go_file.go", fpath: "process_go_file.go", start: 168, count: 0},
 			{fpathOld: "process_go_file_test.go", fpath: "process_go_file_test.go", start: 6, count: 2},
-			{fpathOld: "process_go_file_test.go", fpath: "process_go_file_test.go", start: 72, count: 22}}, err: ""},
+			{fpathOld: "process_go_file_test.go", fpath: "process_go_file_test.go", start: 72, count: 22}}},
 		// deleted file
 		{data: `diff --git a/main.go b/main.go
 deleted file mode 100644
@@ -437,24 +421,15 @@ index 6e2c328..0000000
 -func add(a, b int) {
 -	return a + b
 -}
-`, output: nil /* no changes */, err: ""},
+`, output: nil},
 	}
 	var buffer bytes.Buffer
-	var errOut string
 	for i, tc := range cases {
 		buffer.Reset()
-		errOut = ""
-		_, err := buffer.WriteString(tc.data)
-		if err != nil {
-			t.Errorf("unexpected buffer.WriteString error %v", err)
-			continue
-		}
+		buffer.WriteString(tc.data)
+
 		changes, err := changesFromGitDiff(buffer)
-		if err != nil {
-			errOut = err.Error()
-		}
-		if errOut != tc.err {
-			t.Errorf("case [%d]\nexpected error %#v\ngot %#v", i, tc.err, errOut)
+		if isUnexpectedErr(t, i, "", tc.err, err) {
 			continue
 		}
 
@@ -466,18 +441,18 @@ index 6e2c328..0000000
 	}
 }
 
-func Test_fnNameFromCallExpr(t *testing.T) {
+func TestFnNameFromCallExpr(t *testing.T) {
 	cases := []struct {
 		callExpr *ast.CallExpr
 		output   string
-		err      string
+		err      error
 	}{
 		{
 			&ast.CallExpr{
 				Fun: &ast.Ident{
 					Name: "F1",
 				},
-			}, "F1", ""},
+			}, "F1", nil},
 		{
 			&ast.CallExpr{
 				Fun: &ast.SelectorExpr{
@@ -488,7 +463,7 @@ func Test_fnNameFromCallExpr(t *testing.T) {
 						Name: "Error",
 					},
 				},
-			}, "t.Error", ""},
+			}, "t.Error", nil},
 		{
 			&ast.CallExpr{
 				Fun: &ast.SelectorExpr{
@@ -499,7 +474,7 @@ func Test_fnNameFromCallExpr(t *testing.T) {
 						Name: "F2",
 					},
 				},
-			}, "pkg1.F2", "",
+			}, "pkg1.F2", nil,
 		},
 		{
 			&ast.CallExpr{
@@ -511,7 +486,7 @@ func Test_fnNameFromCallExpr(t *testing.T) {
 						Name: "Diff",
 					},
 				},
-			}, "pkgc.Diff", "",
+			}, "pkgc.Diff", nil,
 		},
 		{
 			&ast.CallExpr{
@@ -531,7 +506,7 @@ func Test_fnNameFromCallExpr(t *testing.T) {
 						Name:    "Min",
 					},
 				}},
-			"pk.Type.Min", "",
+			"pk.Type.Min", nil,
 		},
 		{
 			&ast.CallExpr{
@@ -547,18 +522,12 @@ func Test_fnNameFromCallExpr(t *testing.T) {
 						},
 					},
 				},
-			}, "", "unexpected value *ast.IndexExpr",
+			}, "", errors.New("unexpected value *ast.IndexExpr"),
 		},
 	}
-	var errOut string
 	for i, tc := range cases {
-		errOut = ""
 		fnName, err := fnNameFromCallExpr(tc.callExpr)
-		if err != nil {
-			errOut = err.Error()
-		}
-		if errOut != tc.err {
-			t.Errorf("case [%d]\nexpected error %#v\ngot %#v", i, tc.err, errOut)
+		if isUnexpectedErr(t, i, "", tc.err, err) {
 			continue
 		}
 		if fnName != tc.output {
@@ -604,7 +573,7 @@ func TestGetFileBlocks(t *testing.T) {
 		fileName string
 		fileData []byte
 		output   FileInfo
-		err      string
+		err      error
 	}{
 		{
 			fileName: "gofile.go", fileData: gofile, output: FileInfo{
@@ -621,15 +590,9 @@ func TestGetFileBlocks(t *testing.T) {
 			},
 		},
 	}
-	var errOut string
 	for i, tc := range cases {
-		errOut = ""
 		fileInfo, err := getFileInfo("gofile.go", gofile)
-		if err != nil {
-			errOut = err.Error()
-		}
-		if errOut != tc.err {
-			t.Errorf("case [%d]\nexpected error %#v\ngot %#v", i, tc.err, errOut)
+		if isUnexpectedErr(t, i, "", tc.err, err) {
 			continue
 		}
 
