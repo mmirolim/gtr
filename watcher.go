@@ -13,8 +13,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-var debug = true
-
 type Task interface {
 	ID() string
 	Run(ctx context.Context) (msg string, err error)
@@ -33,40 +31,50 @@ type NotificationService interface {
 
 // TODO test passing args to test run
 type Watcher struct {
+	*fsnotify.Watcher
+	workDir             string
+	dirs                map[string]bool
 	tasks               []Task
 	delay               time.Duration
 	excludeFilePrefixes []string
 	excludeDirs         []string
-	events              chan fsnotify.Event
-	errs                chan error
+	quit                chan bool
 }
 
-func NewWatcher(tasks []Task,
+func NewWatcher(
+	workDir string,
+	tasks []Task,
 	delay int,
 	excludeFilePrefixes []string,
 	excludeDirs []string,
-) Watcher {
-	return Watcher{
+) (*Watcher, error) {
+	watcher, err := fsnotify.NewWatcher()
+	return &Watcher{
+		Watcher:             watcher,
+		workDir:             workDir,
+		dirs:                make(map[string]bool),
 		tasks:               tasks,
 		delay:               time.Duration(delay) * time.Millisecond,
 		excludeFilePrefixes: excludeFilePrefixes,
 		excludeDirs:         excludeDirs,
-		events:              make(chan fsnotify.Event),
-		errs:                make(chan error),
-	}
+		quit:                make(chan bool),
+	}, err
 }
 
 // Blocks
-func (w *Watcher) Run() {
+func (w *Watcher) Run() error {
 	fmt.Println("watcher running...")
-	done := make(chan bool)
-	// watch files
-	go w.watchFiles()
+	// watch directories recursively
+	err := w.addDirs()
+	if err != nil {
+		return err
+	}
 	// start listening to notifications in separate goroutine
 	go w.runTasks()
 
 	// block
-	<-done
+	<-w.quit
+	return nil
 }
 
 func (w *Watcher) skipChange(
@@ -119,7 +127,16 @@ func (w *Watcher) runTasks() {
 LOOP:
 	for {
 		select {
-		case e := <-w.events:
+		case <-w.quit:
+			// quit task
+			if cancel != nil {
+				// stop tasks
+				cancel()
+			}
+			fmt.Println("Watcher.runTasks quit")
+			return
+
+		case e := <-w.Events:
 			if w.skipChange(e, lastModFile, lastModTime) {
 				continue LOOP
 			}
@@ -148,12 +165,12 @@ LOOP:
 					}
 				}
 				// add loging
-				w.printDebug("command executed")
+				fmt.Println("command executed")
 			}()
 			// process started incr rerun counter
 			rerunCounter++
 
-		case err := <-w.errs:
+		case err := <-w.Errors:
 			log.Println("Error:", err)
 		}
 	}
@@ -162,50 +179,30 @@ LOOP:
 // recursively set watcher to all child directories
 // and fan-in all events and errors to chan in main loop
 // TODO support watching new added directories
-func (w *Watcher) watchFiles() {
+func (w *Watcher) addDirs() error {
 	// walk current directory and if there is other directory add watcher to it
-	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			if len(path) > 1 {
-				if w.skipDir(path) {
-					return filepath.SkipDir
-				}
-			}
-			// create new watcher
-			watcher, err := fsnotify.NewWatcher()
-			if err != nil {
-				log.Fatal(err)
-			}
-			// add watcher to dir
-			err = watcher.Add(path)
-			if err != nil {
-				errClose := watcher.Close()
-				log.Fatal(errClose, err)
-			}
-			w.printDebug("dir to watch", path)
-			go func() {
-				for {
-					select {
-					case v := <-watcher.Events:
-						// on event send data to shared event chan
-						w.events <- v
-					case err := <-watcher.Errors:
-						// on error send data to shared error chan
-						w.errs <- err
-					}
-				}
-			}()
+	err := filepath.Walk(w.workDir, func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir() {
+			return nil
 		}
-		return err
+		if w.skipDir(path) {
+			return filepath.SkipDir
+		}
+		// add watcher to dir
+		err = w.Add(path)
+		if err != nil {
+			fmt.Printf("could not add dir to watcher %s\n", err)
+			return filepath.SkipDir
+		}
+		w.dirs[path] = true
+		return nil
 	})
-	if err != nil {
-		fmt.Println("filepath walk err " + err.Error())
-	}
+
+	return err
 }
 
-func (w *Watcher) printDebug(args ...interface{}) {
-	// TODO get call stack previous pc to correctly show line numbers
-	if debug {
-		log.Println(args...)
-	}
+// Stop Watcher
+func (w *Watcher) Stop() error {
+	defer close(w.quit)
+	return w.Close()
 }

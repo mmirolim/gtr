@@ -10,13 +10,13 @@ import (
 
 var (
 	delay           = flag.Int("delay", 1000, "delay in Milliseconds")
-	showDebug       = flag.Bool("debug", true, "show debug information")
 	testBinaryArgs  = flag.String("args", "", "arguments to pass to binary format -k1=v1 -k2=v2")
 	excludePrefixes = flag.String("exclude-file-prefix", "flymake,#flymake", "prefixes to exclude sep by comma")
 	excludeDirs     = flag.String("exclude-dir", "vendor,node_modules", "prefixes to exclude sep by comma")
 )
 
 // TODO output to stdout with gtr prefix
+// TODO do not use all cpu, limit concurrency
 func main() {
 	flag.Parse()
 	cmd := exec.Command("git", "status")
@@ -25,7 +25,6 @@ func main() {
 		fmt.Printf("git status error %+v\n", err) // output for debug
 		os.Exit(1)
 	}
-	debug = *showDebug
 	workDir := "."
 	diffStrategy := NewGitDiffStrategy(workDir)
 	notifier := NewDesktopNotificator(true, 2000)
@@ -36,13 +35,22 @@ func main() {
 		true,
 	)
 
-	watcher := NewWatcher(
+	watcher, err := NewWatcher(
+		workDir,
 		[]Task{testRunner, notifier},
 		*delay,
 		splitStr(*excludePrefixes, ","),
 		splitStr(*excludeDirs, ","),
 	)
-	watcher.Run()
+	if err != nil {
+		fmt.Printf("NewWatcher error %+v\n", err) // output for debug
+		os.Exit(1)
+	}
+	err = watcher.Run()
+	if err != nil {
+		fmt.Printf("Watcher.Run error %+v\n", err) // output for debug
+		os.Exit(1)
+	}
 }
 
 func splitStr(str, sep string) []string {
