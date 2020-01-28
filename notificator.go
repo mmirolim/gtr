@@ -27,7 +27,7 @@ func (n *DesktopNotificator) ID() string {
 }
 
 func (n *DesktopNotificator) Run(ctx context.Context) (string, error) {
-	prevOut, ok := ctx.Value(prevTaskOutput).(string)
+	prevOut, ok := ctx.Value(prevTaskOutputKey).(string)
 	if !ok {
 		return "", errors.New("missing/wrong context value")
 	}

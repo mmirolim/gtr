@@ -13,25 +13,28 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-type Task interface {
-	ID() string
-	Run(ctx context.Context) (msg string, err error)
-}
-
 type TaskCtxKey string
 
 const (
 	changedFileNameKey TaskCtxKey = "changed_file_name_key"
-	prevTaskOutput     TaskCtxKey = "prev_task_output_key"
+	prevTaskOutputKey  TaskCtxKey = "prev_task_output_key"
 )
+
+var _ Task = (*taskAdapter)(nil)
+
+type Task interface {
+	ID() string
+	Run(ctx context.Context) (msg string, err error)
+}
 
 type NotificationService interface {
 	Send(msg string) error
 }
 
 // TODO test passing args to test run
+// TODO use logger
 type Watcher struct {
-	*fsnotify.Watcher
+	wt                  *fsnotify.Watcher
 	workDir             string
 	dirs                map[string]bool
 	tasks               []Task
@@ -50,7 +53,7 @@ func NewWatcher(
 ) (*Watcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	return &Watcher{
-		Watcher:             watcher,
+		wt:                  watcher,
 		workDir:             workDir,
 		dirs:                make(map[string]bool),
 		tasks:               tasks,
@@ -81,7 +84,7 @@ func (w *Watcher) skipChange(
 	e fsnotify.Event,
 	lastModFile string,
 	lastModTime time.Time) bool {
-	if e.Op&fsnotify.Write != fsnotify.Write {
+	if e.Op&(fsnotify.Write|fsnotify.Create) == 0 {
 		return true
 	}
 	if lastModFile == e.Name {
@@ -102,6 +105,9 @@ func (w *Watcher) skipChange(
 }
 
 func (w *Watcher) skipDir(dir string) bool {
+	if dir == w.workDir {
+		return false
+	}
 	baseDir := filepath.Base(dir)
 	// skip hidden dirs
 	if strings.HasPrefix(baseDir, ".") {
@@ -118,8 +124,6 @@ func (w *Watcher) skipDir(dir string) bool {
 // main loop to listen all events from all registered directories
 // and exec tasks
 func (w *Watcher) runTasks() {
-	// keep track of reruns
-	rerunCounter := 1
 	var ctx context.Context
 	var cancel context.CancelFunc
 	lastModTime := time.Now()
@@ -133,10 +137,26 @@ LOOP:
 				// stop tasks
 				cancel()
 			}
-			fmt.Println("Watcher.runTasks quit")
 			return
 
-		case e := <-w.Events:
+		case e := <-w.wt.Events:
+			if e.Op&fsnotify.Remove > 0 && w.dirs[e.Name] {
+				// remove from watching list
+				// fsnotify auto cleans on delete
+				delete(w.dirs, e.Name)
+				continue LOOP
+			}
+			info, err := os.Stat(e.Name)
+			if err != nil {
+				continue LOOP
+			}
+			if info.IsDir() {
+				err := w.add(e.Name)
+				if err != nil {
+					fmt.Printf("watcher add unexpected err %+v\n", err) // output for debug
+				}
+				continue LOOP
+			}
 			if w.skipChange(e, lastModFile, lastModTime) {
 				continue LOOP
 			}
@@ -149,14 +169,13 @@ LOOP:
 
 			ctx, cancel = context.WithCancel(
 				context.WithValue(context.Background(), changedFileNameKey, e.Name))
-			//time.Sleep(w.delay)
 			// do not block loop
 			go func() {
 				var output string
 				var err error
 				// run tasks in provided sequence
 				for _, task := range w.tasks {
-					ctx = context.WithValue(ctx, prevTaskOutput, output)
+					ctx = context.WithValue(ctx, prevTaskOutputKey, output)
 					fmt.Printf("Run task.ID %+v\n", task.ID()) // output for debug
 					output, err = task.Run(ctx)
 					if err != nil {
@@ -165,34 +184,46 @@ LOOP:
 					}
 				}
 				// add loging
-				fmt.Println("command executed")
+				fmt.Println("tasks executed")
 			}()
-			// process started incr rerun counter
-			rerunCounter++
 
-		case err := <-w.Errors:
-			log.Println("Error:", err)
+		case err := <-w.wt.Errors:
+			if err != nil {
+				log.Println("Error:", err)
+			}
 		}
 	}
 }
 
-// recursively set watcher to all child directories
-// and fan-in all events and errors to chan in main loop
+// add dir to watch list
+func (w *Watcher) add(path string) error {
+	if w.skipDir(path) {
+		return filepath.SkipDir
+	}
+	// add watcher to dir
+	err := w.wt.Add(path)
+	if err != nil {
+		fmt.Printf("could not add dir to watcher %s\n", err)
+		return filepath.SkipDir
+	}
+	w.dirs[path] = true
+	return nil
+}
+
+// recursively adds directories to a watcher
 // TODO support watching new added directories
 func (w *Watcher) addDirs() error {
 	// walk current directory and if there is other directory add watcher to it
 	err := filepath.Walk(w.workDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if !info.IsDir() {
 			return nil
 		}
-		if w.skipDir(path) {
-			return filepath.SkipDir
-		}
-		// add watcher to dir
-		err = w.Add(path)
+		err = w.add(path)
 		if err != nil {
-			fmt.Printf("could not add dir to watcher %s\n", err)
-			return filepath.SkipDir
+			return err
 		}
 		w.dirs[path] = true
 		return nil
@@ -204,5 +235,22 @@ func (w *Watcher) addDirs() error {
 // Stop Watcher
 func (w *Watcher) Stop() error {
 	defer close(w.quit)
-	return w.Close()
+	return w.wt.Close()
+}
+
+func NewTask(id string, fn func(context.Context) (string, error)) Task {
+	return taskAdapter{id, fn}
+}
+
+type taskAdapter struct {
+	id string
+	fn func(context.Context) (string, error)
+}
+
+func (ta taskAdapter) ID() string {
+	return ta.id
+}
+
+func (ta taskAdapter) Run(ctx context.Context) (string, error) {
+	return ta.fn(ctx)
 }

@@ -60,11 +60,3 @@ func splitStr(str, sep string) []string {
 	}
 	return out
 }
-
-func GitCmdFactory(workDir string) func(args ...string) error {
-	return func(args ...string) error {
-		gitCmd := exec.Command("git", "-C", workDir)
-		gitCmd.Args = append(gitCmd.Args, args...)
-		return gitCmd.Run()
-	}
-}

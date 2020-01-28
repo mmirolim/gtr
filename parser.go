@@ -35,6 +35,14 @@ func (g *GitCMD) Diff() ([]Change, error) {
 	return GetDiff(g.workDir)
 }
 
+func GitCmdFactory(workDir string) func(args ...string) error {
+	return func(args ...string) error {
+		gitCmd := exec.Command("git", "-C", workDir)
+		gitCmd.Args = append(gitCmd.Args, args...)
+		return gitCmd.Run()
+	}
+}
+
 // TODO handle rename/copy/delete, /dev/null is used to signal created or deleted files.
 func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	var changes []Change
