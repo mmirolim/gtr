@@ -19,39 +19,53 @@ func (ds *dummyStrategy) TestsToRun() (tests []string, subTests []string, err er
 
 func TestGoTestRunnerRun(t *testing.T) {
 	cases := []struct {
+		desc        string
 		strategyErr error
 		cmdSuccess  bool
 		tests       []string
 		subTests    []string
 		output      string
-		err         string
+		err         error
 	}{
-		{nil, true, nil, nil, "no test found to run", ""},
-		{nil, true, []string{"TestZ$", "TestC"}, nil, "Tests PASS: TestZ$|TestC", ""},
-		{nil, true, []string{"TestZ$"}, []string{"b1", "z2"}, "Tests PASS: TestZ$/(b1|z2)", ""},
+		{desc: "No file changes", cmdSuccess: true, output: "no test found to run"},
 		{
-			errors.New("injected error"), true,
-			[]string{"TestZ$"}, []string{"b1"}, "",
-			"strategy error injected error",
+			desc:       "2 top level tests pass",
+			cmdSuccess: true,
+			tests:      []string{"TestZ$", "TestC$"},
+			output:     "Tests PASS: TestZ$|TestC$",
 		},
 		{
-			nil, false,
-			[]string{"TestZ$"}, []string{"b1"},
-			"Tests FAIL: TestZ$/(b1)",
-			"",
+			desc:       "1 top level test and 2 subtests pass",
+			cmdSuccess: true,
+			tests:      []string{"TestZ$"},
+			subTests:   []string{"b1", "z2"},
+			output:     "Tests PASS: TestZ$/(b1|z2)",
 		},
-		{ // define only sub tests group
-			nil, true,
-			nil, []string{"group"},
-			"Tests PASS: /(group)",
-			"",
+		{
+			desc:        "Strategy error",
+			strategyErr: errors.New("injected error"),
+			cmdSuccess:  true,
+			tests:       []string{"TestZ$"},
+			subTests:    []string{"b1"},
+			err:         errors.New("strategy error injected error"),
+		},
+		{
+			desc:       "Tests failed",
+			cmdSuccess: false,
+			tests:      []string{"TestZ$"},
+			subTests:   []string{"b1"},
+			output:     "Tests FAIL: TestZ$/(b1)",
+		},
+		{
+			desc:       "Subtests pass",
+			cmdSuccess: true,
+			subTests:   []string{"group"},
+			output:     "Tests PASS: /(group)",
 		},
 	}
 
-	var errOut string
 	var ds dummyStrategy
 	for i, tc := range cases {
-		errOut = ""
 		ds.err = tc.strategyErr
 		ds.tests = tc.tests
 		ds.subtests = tc.subTests
@@ -59,15 +73,12 @@ func TestGoTestRunnerRun(t *testing.T) {
 
 		runner := NewGoTestRunner(&ds, mockCmd.New, "", false)
 		out, err := runner.Run(context.TODO())
-		if err != nil {
-			errOut = err.Error()
-		}
-		if errOut != tc.err {
-			t.Errorf("case [%d]\nexpected error \"%s\"\ngot \"%s\"", i, tc.err, errOut)
+
+		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue
 		}
 		if tc.output != out {
-			t.Errorf("case [%d]\nexpected \"%s\", got \"%s\"", i, tc.output, out)
+			t.Errorf("case [%d] %s\nexpected \"%s\", got \"%s\"", i, tc.desc, tc.output, out)
 		}
 
 	}
