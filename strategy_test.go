@@ -33,13 +33,15 @@ func TestChangesToFileBlocks(t *testing.T) {
 		},
 	}
 	cases := []struct {
+		desc      string
 		changes   []Change
 		fileInfos map[string]FileInfo
 		output    map[string]FileInfo
-		err       string
+		err       error
 	}{
-		{nil, nil, nil, ""},
+		{desc: "no file changes"},
 		{
+			desc: "file f1, 1 block changed",
 			changes: []Change{
 				{"f1", "f1", 10, 2},
 			},
@@ -47,9 +49,9 @@ func TestChangesToFileBlocks(t *testing.T) {
 			output: map[string]FileInfo{
 				"f1": {"f1", "main", f1_Blocks[1:]},
 			},
-			err: "",
 		},
 		{
+			desc: "3 changes in 2 files",
 			changes: []Change{
 				{"", "f1", 3, 7},
 				{"f2", "f2", 1, 1},
@@ -60,9 +62,9 @@ func TestChangesToFileBlocks(t *testing.T) {
 				"f1": {"f1", "main", []FileBlock{f1_Blocks[0]}},
 				"f2": {"f2", "main", []FileBlock{f2_Blocks[2], f2_Blocks[3]}},
 			},
-			err: "",
 		},
-		{ // new untracked file
+		{
+			desc: "new untracked file added",
 			changes: []Change{
 				{"f1", "f1", 0, 0},
 			},
@@ -70,25 +72,18 @@ func TestChangesToFileBlocks(t *testing.T) {
 			output: map[string]FileInfo{
 				"f1": {"f1", "main", f1_Blocks},
 			},
-			err: "",
 		},
 	}
-	var errOut string
+
 	for i, tc := range cases {
-		errOut = ""
 		out, err := changesToFileBlocks(tc.changes, tc.fileInfos)
-		if err != nil {
-			errOut = err.Error()
-		}
-		if errOut != tc.err {
-			t.Errorf("case [%d]\nexpected error \"%s\"\ngot \"%s\"", i, tc.err, errOut)
+		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue
 		}
 		diff := pretty.Diff(tc.output, out)
 		if len(diff) > 0 {
 			t.Errorf("case [%d]\ndiff %+v", i, diff)
 		}
-
 	}
 
 }
@@ -230,9 +225,9 @@ func max(a, b int) int {
 		desc                  string
 		setup, tearDown       func() error
 		outTests, outSubTests []string
-		err                   string
+		err                   error
 	}{
-		{"No changes in files", nil, nil, nil, nil, ""},
+		{desc: "No changes in files"},
 		{
 			desc: "Update file_a.go file",
 			setup: func() error {
@@ -243,7 +238,6 @@ func max(a, b int) int {
 				return gitCmdRun("commit", "-am", "commit file_a.go changes")
 			},
 			outTests: []string{"TestAdd$", "TestSub$"}, outSubTests: []string{}, // should be nil?
-			err: "",
 		},
 		{
 			desc: "Update file_b.go file max func",
@@ -251,29 +245,19 @@ func max(a, b int) int {
 				return ioutil.WriteFile(
 					filepath.Join(testDir, "file_b.go"), fileBUpdateMax, 0600)
 			},
-			tearDown: nil,
 			outTests: []string{"TestMinMax$"}, outSubTests: []string{"max"},
-			err: "",
 		},
 	}
 	gitDiffStrategy := setup()
-	var errOut string
 	for i, tc := range cases {
-		errOut = ""
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
 
 		testsList, subTestsList, err := gitDiffStrategy.TestsToRun()
-		if err != nil {
-			errOut = err.Error()
-		}
 
-		if errOut != tc.err {
-			t.Errorf("case [%d]\nexpected error \"%s\"\ngot \"%s\"", i, tc.err, errOut)
+		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue
 		}
-		// teardown()
-		execTestHelper(t, i, tc.desc, tc.tearDown)
 
 		sort.Strings(tc.outTests)
 		sort.Strings(testsList)
@@ -286,7 +270,8 @@ func max(a, b int) int {
 		if !reflect.DeepEqual(tc.outSubTests, subTestsList) {
 			t.Errorf("case [%d]\nexpected Subtests %+v\ngot %+v", i, tc.outSubTests, subTestsList)
 		}
-
+		// teardown()
+		execTestHelper(t, i, tc.desc, tc.tearDown)
 	}
 
 }
@@ -311,6 +296,9 @@ func setupTestGitDir(t *testing.T, testDir string, files map[string][]byte, file
 	if err != nil {
 		t.Fatalf("setup git init error %s", err)
 	}
+	if len(filesToCommit) == 0 {
+		return
+	}
 	for i := range filesToCommit {
 		err = gitCmd("add", filesToCommit[i])
 		if err != nil {
@@ -334,4 +322,22 @@ func execTestHelper(t *testing.T, testID int, desc string, helper func() error) 
 	if err != nil {
 		t.Fatalf("case [%d] %s\nhelper func failed, unexpected error %v", testID, desc, err)
 	}
+}
+
+func isUnexpectedErr(t *testing.T, caseID int, desc string, expectedErr, goterr error) bool {
+	t.Helper()
+	var eStr, gotStr string
+	if expectedErr != nil {
+		eStr = expectedErr.Error()
+	}
+	if goterr != nil {
+		gotStr = goterr.Error()
+	}
+
+	if eStr != gotStr {
+		t.Errorf("case [%d] %s\nexpected error \"%s\"\ngot \"%s\"", caseID, desc, eStr, gotStr)
+		return true
+	}
+	return false
+
 }
