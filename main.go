@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -16,7 +17,6 @@ var (
 )
 
 // TODO output to stdout with gtr prefix
-// TODO do not use all cpu, limit concurrency
 func main() {
 	flag.Parse()
 	cmd := exec.Command("git", "status")
@@ -46,6 +46,8 @@ func main() {
 		fmt.Printf("NewWatcher error %+v\n", err) // output for debug
 		os.Exit(1)
 	}
+	// limit cpu usage
+	runtime.GOMAXPROCS(runtime.NumCPU() / 2)
 	err = watcher.Run()
 	if err != nil {
 		fmt.Printf("Watcher.Run error %+v\n", err) // output for debug
