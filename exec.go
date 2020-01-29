@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"strings"
 )
 
 type CommandExecutor interface {
@@ -61,6 +62,7 @@ type MockCommand struct {
 	stdOut, stdErr io.Writer
 	success        bool
 	error          error
+	execLog        []string
 }
 
 func NewMockCommand(err error, success bool) MockCommand {
@@ -70,7 +72,9 @@ func NewMockCommand(err error, success bool) MockCommand {
 }
 
 func (c *MockCommand) New(ctx context.Context, bin string, args ...string) CommandExecutor {
+	c.bin = bin
 	c.args = args
+	c.execLog = append(c.execLog, bin+" "+strings.Join(args, " "))
 	return c
 }
 
