@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -27,11 +26,8 @@ func (n *DesktopNotificator) ID() string {
 }
 
 func (n *DesktopNotificator) Run(ctx context.Context) (string, error) {
-	prevOut, ok := ctx.Value(prevTaskOutputKey).(string)
-	if !ok {
-		return "", errors.New("missing/wrong context value")
-	}
-	return "", n.Send(ctx, prevOut)
+	in := ctx.Value(prevTaskOutputKey).(string)
+	return in, n.Send(ctx, in)
 }
 
 func (n *DesktopNotificator) Send(ctx context.Context, msg string) error {
