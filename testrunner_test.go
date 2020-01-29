@@ -13,7 +13,9 @@ type dummyStrategy struct {
 	err             error
 }
 
-func (ds *dummyStrategy) TestsToRun() (tests []string, subTests []string, err error) {
+func (ds *dummyStrategy) TestsToRun(ctx context.Context) (
+	tests []string, subTests []string, err error,
+) {
 	return ds.tests, ds.subtests, ds.err
 }
 

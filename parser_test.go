@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -323,7 +324,7 @@ func TestGetDiff(t *testing.T) {
 		execTestHelper(t, i, tc.desc, tc.setup)
 
 		// should get line numbers by file and namespace
-		output, err := GetDiff(testDir)
+		output, err := GetDiff(context.Background(), testDir)
 
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)

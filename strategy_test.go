@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -253,7 +254,7 @@ func max(a, b int) int {
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
 
-		testsList, subTestsList, err := gitDiffStrategy.TestsToRun()
+		testsList, subTestsList, err := gitDiffStrategy.TestsToRun(context.Background())
 
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)

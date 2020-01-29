@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -20,7 +21,7 @@ import (
 var ErrUnsupportedType = errors.New("unsupported type")
 
 type Strategy interface {
-	TestsToRun() (tests []string, subTests []string, err error)
+	TestsToRun(context.Context) (tests []string, subTests []string, err error)
 }
 
 var _ Strategy = (*GitDiffStrategy)(nil)
@@ -42,8 +43,8 @@ func NewGitDiffStrategy(workDir string) *GitDiffStrategy {
 // TODO feature auto commit on test pass
 // TODO configure analyze strategy, parsing/pointer analyzes
 // TODO improve performance, TestsToRun testing takes more than 2s
-func (gds *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []string, err error) {
-	changes, err := gds.gitCmd.Diff()
+func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string, subTestsList []string, err error) {
+	changes, err := gds.gitCmd.Diff(ctx)
 	if err != nil {
 		err = fmt.Errorf("gitCmd.Diff error %s", err)
 		return
@@ -87,7 +88,7 @@ func (gds *GitDiffStrategy) TestsToRun() (testsList []string, subTestsList []str
 		err = fmt.Errorf("changesToFileBlocks error %s", cerr)
 		return
 	}
-	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(gds.workDir)
+	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(ctx, gds.workDir)
 	if analyzeErr != nil {
 		err = fmt.Errorf("analyzeGoCode error %s", analyzeErr)
 		return
@@ -208,7 +209,7 @@ func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[s
 }
 
 // TODO do not print errors, just return it
-func analyzeGoCode(workDir string) (
+func analyzeGoCode(ctx context.Context, workDir string) (
 	moduleName string,
 	filePathToPkg map[string]string,
 	allSubtests map[string][]string,
@@ -216,7 +217,8 @@ func analyzeGoCode(workDir string) (
 	err error,
 ) {
 	cfg := &packages.Config{
-		Dir: workDir,
+		Context: ctx,
+		Dir:     workDir,
 		Mode: packages.NeedName |
 			packages.NeedFiles |
 			packages.NeedSyntax |

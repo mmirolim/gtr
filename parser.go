@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -31,8 +32,8 @@ func NewGitCMD(workDir string) *GitCMD {
 	return &GitCMD{workDir}
 }
 
-func (g *GitCMD) Diff() ([]Change, error) {
-	return GetDiff(g.workDir)
+func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
+	return GetDiff(ctx, g.workDir)
 }
 
 func GitCmdFactory(workDir string) func(args ...string) error {
@@ -157,12 +158,12 @@ func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	return changes, serr
 }
 
-func GetDiff(workdir string) ([]Change, error) {
+func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
 	// TODO store hashes of new files and return untracked new files to run
 	var gitOut bytes.Buffer
 	var results []Change
 	// get not yet commited go files
-	gitCmd := exec.Command("git", "-C", workdir, "status", "--short")
+	gitCmd := exec.CommandContext(ctx, "git", "-C", workdir, "status", "--short")
 	gitCmd.Stdout = &gitOut
 	err := gitCmd.Run()
 	if err != nil {
