@@ -309,7 +309,6 @@ func TestWatcherRunTasks(t *testing.T) {
 			},
 			expectedTaskOutput: "6", expectedTaskErr: nil,
 		},
-		// TODO dir rename
 	}
 	for i, tc := range cases {
 		if i > 0 {

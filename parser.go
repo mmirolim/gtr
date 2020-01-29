@@ -44,7 +44,6 @@ func GitCmdFactory(workDir string) func(args ...string) error {
 	}
 }
 
-// TODO handle rename/copy/delete, /dev/null is used to signal created or deleted files.
 func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	var changes []Change
 	var serr error
@@ -191,13 +190,6 @@ func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
 	return results, nil
 }
 
-type Entity struct {
-	typ  string
-	name string
-}
-
-// TODO handle rename imports
-// TODO handle variable resolution
 func fnNameFromCallExpr(fn *ast.CallExpr) (string, error) {
 	var fname string
 	var err error

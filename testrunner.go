@@ -36,9 +36,7 @@ func (tr *GoTestRunner) ID() string {
 	return "GoTestRunner"
 }
 
-// TODO run tests in parallel per package?
 func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
-	// TODO pass context to strategy
 	tests, subTests, err := tr.strategy.TestsToRun(ctx)
 	if err != nil {
 		// TODO report build fail?

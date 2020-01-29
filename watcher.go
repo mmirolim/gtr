@@ -27,10 +27,6 @@ type Task interface {
 	Run(ctx context.Context) (msg string, err error)
 }
 
-type NotificationService interface {
-	Send(msg string) error
-}
-
 // TODO test passing args to test run
 // TODO use logger
 type Watcher struct {
@@ -211,7 +207,6 @@ func (w *Watcher) add(path string) error {
 }
 
 // recursively adds directories to a watcher
-// TODO support watching new added directories
 func (w *Watcher) addDirs() error {
 	// walk current directory and if there is other directory add watcher to it
 	err := filepath.Walk(w.workDir, func(path string, info os.FileInfo, err error) error {

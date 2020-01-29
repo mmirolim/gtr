@@ -215,7 +215,6 @@ func TestGetDiff(t *testing.T) {
 		output          []Change
 		expectedErr     error
 	}{
-		// TODO describe expected behavior
 		{
 			desc: "Add new file, math.go, geo.go, math_test.go",
 			setup: func() error {
@@ -316,7 +315,6 @@ func TestGetDiff(t *testing.T) {
 			},
 			output: []Change{{"geo.go", "geo.go", 5, 6}},
 		},
-		// TODO add case with renaming file
 	}
 
 	for i, tc := range cases {

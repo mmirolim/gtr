@@ -18,8 +18,6 @@ import (
 	"golang.org/x/tools/go/ssa/ssautil"
 )
 
-var ErrUnsupportedType = errors.New("unsupported type")
-
 type Strategy interface {
 	TestsToRun(context.Context) (tests []string, subTests []string, err error)
 }
@@ -41,7 +39,6 @@ func NewGitDiffStrategy(workDir string) *GitDiffStrategy {
 
 // TODO test on different modules and Gopath version
 // TODO feature auto commit on test pass
-// TODO configure analyze strategy, parsing/pointer analyzes
 // TODO improve performance, TestsToRun testing takes more than 2s
 func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string, subTestsList []string, err error) {
 	changes, err := gds.gitCmd.Diff(ctx)
@@ -118,7 +115,6 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 	allTests := getAllTestsInModule(moduleName, graph)
 	testsSet := map[string]bool{}
 	subTests := map[string]bool{}
-	// TODO test with subtest Groups
 	for tnode := range allTests {
 		callgraph.PathSearch(tnode, func(n *callgraph.Node) bool {
 			if changedNodes[n] {
@@ -230,7 +226,6 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 		Tests: true,
 	}
 
-	//TODO test without packages.NeedCompiledGoFiles |
 	var pkgs []*packages.Package
 	// find all packages
 	pkgs, err = packages.Load(cfg, workDir+"/...")
