@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -279,6 +280,10 @@ func max(a, b int) int {
 
 func setupTestGitDir(t *testing.T, testDir string, files map[string][]byte, filesToCommit []string) {
 	t.Helper()
+	// check that we are working in TempDir
+	if !strings.HasPrefix(testDir, os.TempDir()) {
+		t.Fatalf("expected test dir be in %s, got %s", os.TempDir(), testDir)
+	}
 	_ = os.RemoveAll(testDir)
 	err := os.Mkdir(testDir, 0700)
 	if err != nil {
@@ -286,6 +291,13 @@ func setupTestGitDir(t *testing.T, testDir string, files map[string][]byte, file
 	}
 
 	for fname, fdata := range files {
+		path, _ := filepath.Split(fname)
+		if path != "" {
+			err = os.MkdirAll(filepath.Join(testDir, path), 0700)
+			if err != nil {
+				t.Fatalf("setup MkdirAll error %s", err)
+			}
+		}
 		err = ioutil.WriteFile(filepath.Join(testDir, fname), fdata, 0600)
 		if err != nil {
 			t.Fatalf("setup write error %v", err)
