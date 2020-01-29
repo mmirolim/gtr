@@ -201,17 +201,59 @@ func max(a, b int) int {
 	return b
 }
 `)
+	var pkgAFile = []byte(`package pkga
+
+import (
+	rename "git-diff-strategy-test-run/pkgb"
+)
+
+func F() string {
+	return "pkga.F()->" + rename.F()
+}
+`)
+	var pkgBFile = []byte(`package pkgb
+
+func F() string {
+	return "pkgb.F()"
+}
+`)
+	var pkgATestFile = []byte(`package pkga
+import "testing"
+
+func TestPkgAFunc(t *testing.T) {
+	if F() !=  "pkga.F()->pkgb.F"{
+		t.Error("unexpected result")
+	}
+}
+`)
+	var pkgBFileUpdate = []byte(`package pkgb
+
+func F() string {
+	return "pkgb.F():updated"
+}
+`)
+
+	pkgAFilePath := filepath.Join("pkga", "f.go")
+	pkgATestFilePath := filepath.Join("pkga", "f_test.go")
+	pkgBFilePath := filepath.Join("pkgb", "f.go")
+
 	// setup
 	testDir := filepath.Join(os.TempDir(), "test_changes_to_file_blocks")
 	gitCmdRun := GitCmdFactory(testDir)
+
 	files := map[string][]byte{
+		"go.mod":    gomod,
 		"file_a.go": fileA, "file_b.go": fileB, "file_test.go": testFile,
-		"go.mod": gomod,
+		pkgAFilePath: pkgAFile, pkgBFilePath: pkgBFile,
+		pkgATestFilePath: pkgATestFile,
 	}
 	setup := func() *GitDiffStrategy {
 		setupTestGitDir(t,
 			testDir, files,
-			[]string{"file_a.go", "file_b.go", "file_test.go"},
+			[]string{
+				"go.mod", "file_a.go", "file_b.go", "file_test.go",
+				pkgAFilePath, pkgBFilePath, pkgATestFilePath,
+			},
 		)
 		return NewGitDiffStrategy(testDir)
 	}
@@ -247,7 +289,18 @@ func max(a, b int) int {
 				return ioutil.WriteFile(
 					filepath.Join(testDir, "file_b.go"), fileBUpdateMax, 0600)
 			},
+			tearDown: func() error {
+				return gitCmdRun("commit", "-am", "commit file_b.go changes")
+			},
 			outTests: []string{"TestMinMax$"}, outSubTests: []string{"max"},
+		},
+		{
+			desc: "Check named imports",
+			setup: func() error {
+				return ioutil.WriteFile(
+					filepath.Join(testDir, pkgBFilePath), pkgBFileUpdate, 0600)
+			},
+			outTests: []string{"TestPkgAFunc$"}, outSubTests: []string{},
 		},
 	}
 	gitDiffStrategy := setup()
