@@ -18,14 +18,6 @@ func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
 	return GetDiff(ctx, g.workDir)
 }
 
-func GitCmdFactory(workDir string) func(args ...string) error {
-	return func(args ...string) error {
-		gitCmd := exec.Command("git", "-C", workDir)
-		gitCmd.Args = append(gitCmd.Args, args...)
-		return gitCmd.Run()
-	}
-}
-
 func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
 	// TODO store hashes of new files and return untracked new files to run
 	var gitOut bytes.Buffer
@@ -57,4 +49,13 @@ func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
 	}
 	results = append(results, changes...)
 	return results, nil
+}
+
+// TODO add context
+func GitCmdFactory(workDir string) func(args ...string) error {
+	return func(args ...string) error {
+		gitCmd := exec.Command("git", "-C", workDir)
+		gitCmd.Args = append(gitCmd.Args, args...)
+		return gitCmd.Run()
+	}
 }
