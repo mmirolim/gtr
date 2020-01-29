@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 )
 
 var (
@@ -53,12 +52,4 @@ func main() {
 		fmt.Printf("Watcher.Run error %+v\n", err) // output for debug
 		os.Exit(1)
 	}
-}
-
-func splitStr(str, sep string) []string {
-	out := strings.Split(str, sep)
-	for i := range out {
-		out[i] = strings.Trim(out[i], " ")
-	}
-	return out
 }

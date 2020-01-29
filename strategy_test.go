@@ -281,7 +281,7 @@ func F() string {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit file_a.go changes")
 			},
-			outTests: []string{"TestAdd$", "TestSub$"}, outSubTests: []string{}, // should be nil?
+			outTests: []string{"TestAdd", "TestSub"}, outSubTests: nil, // should be nil?
 		},
 		{
 			desc: "Update file_b.go file max func",
@@ -292,7 +292,7 @@ func F() string {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit file_b.go changes")
 			},
-			outTests: []string{"TestMinMax$"}, outSubTests: []string{"max"},
+			outTests: []string{"TestMinMax"}, outSubTests: []string{"max"},
 		},
 		{
 			desc: "Check named imports",
@@ -300,7 +300,7 @@ func F() string {
 				return ioutil.WriteFile(
 					filepath.Join(testDir, pkgBFilePath), pkgBFileUpdate, 0600)
 			},
-			outTests: []string{"TestPkgAFunc$"}, outSubTests: []string{},
+			outTests: []string{"TestPkgAFunc"}, outSubTests: nil,
 		},
 	}
 	gitDiffStrategy := setup()

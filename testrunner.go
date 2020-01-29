@@ -77,7 +77,10 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 }
 
 func (tr *GoTestRunner) joinTestAndSubtest(tests, subTests []string) string {
-	out := strings.Join(tests, "|")
+	out := strings.Join(tests, "$|")
+	if len(out) > 0 {
+		out += "$"
+	}
 	if len(subTests) != 0 {
 		out += "/(" + strings.Join(subTests, "|") + ")"
 	}

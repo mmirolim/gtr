@@ -95,9 +95,9 @@ func TestGoTestRunnerJoinTestAndSubtest(t *testing.T) {
 		output   string
 	}{
 		{nil, nil, ""},
-		{[]string{"TestZ$", "TestC"}, nil, "TestZ$|TestC"},
+		{[]string{"TestZ", "TestC"}, nil, "TestZ$|TestC$"},
 		{nil, []string{"b1", "z2"}, "/(b1|z2)"},
-		{[]string{"TestZ$", "TestC", "TestB$"}, []string{"b1", "z2"}, "TestZ$|TestC|TestB$/(b1|z2)"},
+		{[]string{"TestZ", "TestC", "TestB"}, []string{"b1", "z2"}, "TestZ$|TestC$|TestB$/(b1|z2)"},
 	}
 	for i, tc := range cases {
 		out := runner.joinTestAndSubtest(tc.tests, tc.subTests)

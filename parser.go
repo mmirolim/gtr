@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/kr/pretty"
 )
@@ -262,4 +263,20 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 	fileInfo.endLine = fset.Position(f.End()).Line
 	fileInfo.blocks = blocks
 	return fileInfo, nil
+}
+
+func splitStr(str, sep string) []string {
+	out := strings.Split(str, sep)
+	for i := range out {
+		out[i] = strings.Trim(out[i], " ")
+	}
+	return out
+}
+
+func mapStrToSlice(set map[string]bool) []string {
+	var out []string
+	for k := range set {
+		out = append(out, k)
+	}
+	return out
 }

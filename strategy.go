@@ -134,16 +134,7 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		})
 	}
 
-	testsList = make([]string, 0, len(testsSet))
-	for t := range testsSet {
-		// $ for full match
-		testsList = append(testsList, t+"$")
-	}
-	subTestsList = make([]string, 0, len(subTests))
-	for t := range subTests {
-		subTestsList = append(subTestsList, t)
-	}
-	return testsList, subTestsList, nil
+	return mapStrToSlice(testsSet), mapStrToSlice(subTests), nil
 }
 
 func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[string]FileInfo, error) {
