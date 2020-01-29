@@ -158,6 +158,7 @@ func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[s
 		if !ok {
 			changeInfo.fname = info.fname
 			changeInfo.pkgName = info.pkgName
+			changeInfo.endLine = info.endLine
 		}
 
 		// expect blocks sorted by start line
@@ -169,14 +170,20 @@ func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[s
 			}
 
 			start := change.start
-			end := change.count + change.start
-			// reduce falls change
-			if start+2 < end {
-				start++
-				end = end - 2
+			end := change.count + start - 1
+			// changes are from unified diff format
+			// there are margins between start diff and end
+			if start < end {
+				if start > 1 { // not the first line
+					start += 2
+				}
+				if end < info.endLine { // not last line
+					end = end - 2
+				}
 			}
 			blockEnd := block.end
-			if block.start != block.end {
+			if block.start < block.end &&
+				block.typ&(BlockFunc|BlockMethod|BlockType) > 0 {
 				// not one liner, skip last line with }, le
 				blockEnd--
 			}

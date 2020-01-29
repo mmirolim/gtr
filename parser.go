@@ -169,12 +169,22 @@ func fnNameFromCallExpr(fn *ast.CallExpr) (string, error) {
 
 type FileInfo struct {
 	fname, pkgName string
+	endLine        int
 	blocks         []FileBlock
 }
 type FileBlock struct {
-	typ, name  string
+	typ        BlockKind
+	name       string
 	start, end int // lines [start, end] from 1
 }
+
+type BlockKind uint32
+
+const (
+	BlockType BlockKind = 1 << iota
+	BlockFunc
+	BlockMethod
+)
 
 // getFileInfo returns FileInfo struct
 // with entities divided in blocks according to line position
@@ -202,7 +212,7 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 					// TODO handle
 				case *ast.TypeSpec:
 					block.name = spec.Name.Name
-					block.typ = "type"
+					block.typ = BlockType
 					// handle struct type
 					typ, ok := spec.Type.(*ast.StructType)
 					if ok {
@@ -220,13 +230,13 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 			continue
 		case *ast.FuncDecl:
 			fn := d
-			block.typ = "func"
+			block.typ = BlockFunc
 			block.name = fn.Name.Name
 			block.start = fset.Position(fn.Body.Lbrace).Line
 			block.end = fset.Position(fn.Body.Rbrace).Line
 			if fn.Recv != nil {
 				// method
-				block.typ = "method"
+				block.typ = BlockMethod
 				fld := fn.Recv.List[0]
 				switch v := fld.Type.(type) {
 				case *ast.Ident:
@@ -249,6 +259,7 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 		}
 
 	}
+	fileInfo.endLine = fset.Position(f.End()).Line
 	fileInfo.blocks = blocks
 	return fileInfo, nil
 }

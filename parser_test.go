@@ -21,13 +21,18 @@ index 6452f09..de4ce2a 100644
 --- a/parser.go
 +++ b/parser.go
 @@ -32,0 +33,2 @@ func changesFromGitDiff(diff string) ([]Change, error) {
+        // comment
+        // comment
 +       fmt.Printf("All matches %+v\n", matches) // output for debug
 +
+}
+         // comment
 diff --git a/parser_test.go b/parser_test.go
 index 7268a75..31a1203 100644
 --- a/parser_test.go
 +++ b/parser_test.go
 @@ -341 +341 @@ func TestGetDiff(t *testing.T) {
+//
 -                       desc: "Update file math.go, change package level const and add comment",
 +                       desc: "Multiple updates to file math.go",
 @@ -343 +343,2 @@ func TestGetDiff(t *testing.T) {
@@ -250,14 +255,14 @@ func TestGetFileBlocks(t *testing.T) {
 		{
 			fileName: "gofile.go", fileData: gofile, output: FileInfo{
 				fname:   "gofile.go",
-				pkgName: "main",
+				pkgName: "main", endLine: 30,
 				blocks: []FileBlock{
-					{typ: "type", name: "T1", start: 6, end: 8},
-					{typ: "method", name: "T1.M1", start: 10, end: 14},
-					{typ: "method", name: "T1.M2", start: 16, end: 18},
-					{typ: "func", name: "F2", start: 20, end: 22},
-					{typ: "func", name: "Perimeter", start: 24, end: 26},
-					{typ: "func", name: "Area", start: 28, end: 30},
+					{typ: BlockType, name: "T1", start: 6, end: 8},
+					{typ: BlockMethod, name: "T1.M1", start: 10, end: 14},
+					{typ: BlockMethod, name: "T1.M2", start: 16, end: 18},
+					{typ: BlockFunc, name: "F2", start: 20, end: 22},
+					{typ: BlockFunc, name: "Perimeter", start: 24, end: 26},
+					{typ: BlockFunc, name: "Area", start: 28, end: 30},
 				},
 			},
 		},

@@ -15,23 +15,23 @@ import (
 
 func TestChangesToFileBlocks(t *testing.T) {
 	f1_Blocks := []FileBlock{
-		{typ: "func", name: "main", start: 6, end: 8},
-		{typ: "func", name: "add", start: 10, end: 12},
+		{typ: BlockFunc, name: "main", start: 6, end: 8},
+		{typ: BlockFunc, name: "add", start: 10, end: 12},
 	}
 
 	f2_Blocks := []FileBlock{
-		{typ: "func", name: "sub", start: 6, end: 8},
-		{typ: "func", name: "min", start: 10, end: 16},
-		{typ: "func", name: "min", start: 18, end: 23},
-		{typ: "method", name: "Method", start: 25, end: 30},
+		{typ: BlockFunc, name: "sub", start: 6, end: 8},
+		{typ: BlockFunc, name: "min", start: 10, end: 16},
+		{typ: BlockFunc, name: "min", start: 18, end: 23},
+		{typ: BlockMethod, name: "Method", start: 25, end: 30},
 	}
 
 	fileInfos := map[string]FileInfo{
 		"f1": FileInfo{
-			fname: "f1", pkgName: "main", blocks: f1_Blocks,
+			fname: "f1", pkgName: "main", endLine: 15, blocks: f1_Blocks,
 		},
 		"f2": FileInfo{
-			fname: "f2", pkgName: "main", blocks: f2_Blocks,
+			fname: "f2", pkgName: "main", endLine: 32, blocks: f2_Blocks,
 		},
 	}
 	cases := []struct {
@@ -45,11 +45,11 @@ func TestChangesToFileBlocks(t *testing.T) {
 		{
 			desc: "file f1, 1 block changed",
 			changes: []Change{
-				{"f1", "f1", 10, 2},
+				{"f1", "f1", 7, 6},
 			},
 			fileInfos: fileInfos,
 			output: map[string]FileInfo{
-				"f1": {"f1", "main", f1_Blocks[1:]},
+				"f1": {"f1", "main", 15, f1_Blocks[1:]},
 			},
 		},
 		{
@@ -61,8 +61,8 @@ func TestChangesToFileBlocks(t *testing.T) {
 			},
 			fileInfos: fileInfos,
 			output: map[string]FileInfo{
-				"f1": {"f1", "main", []FileBlock{f1_Blocks[0]}},
-				"f2": {"f2", "main", []FileBlock{f2_Blocks[2], f2_Blocks[3]}},
+				"f1": {"f1", "main", 15, []FileBlock{f1_Blocks[0]}},
+				"f2": {"f2", "main", 32, []FileBlock{f2_Blocks[2], f2_Blocks[3]}},
 			},
 		},
 		{
@@ -72,7 +72,7 @@ func TestChangesToFileBlocks(t *testing.T) {
 			},
 			fileInfos: fileInfos,
 			output: map[string]FileInfo{
-				"f1": {"f1", "main", f1_Blocks},
+				"f1": {"f1", "main", 15, f1_Blocks},
 			},
 		},
 	}
