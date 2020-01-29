@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -328,6 +329,87 @@ func TestGetDiff(t *testing.T) {
 
 		diffs := pretty.Diff(tc.output, output)
 		if len(diffs) > 0 {
+			t.Errorf("case [%d] %s\nexpected %# v\ngot %# v", i, tc.desc, tc.output, output)
+		}
+	}
+}
+
+func TestCommitChangesTask(t *testing.T) {
+	testDir := filepath.Join(os.TempDir(), "test_commit_changes_task")
+	filePath := func(fname string) string {
+		return filepath.Join(testDir, fname)
+	}
+	files := map[string][]byte{
+		"main.go": maingo,
+	}
+	gitCmdRun := GitCmdFactory(testDir)
+	setup := func() {
+		setupTestGitDir(t,
+			testDir, files,
+			[]string{"main.go"},
+		)
+	}
+
+	tearDown := func() {
+		if !t.Failed() {
+			// clean tmp dir on test success
+			_ = os.RemoveAll(testDir)
+		}
+	}
+
+	// prepare
+	setup()
+	defer tearDown()
+
+	// cases
+	cases := []struct {
+		desc            string
+		ctx             context.Context
+		in              string
+		cmdErr          error
+		cmdSuccess      bool
+		setup, tearDown func() error
+		commitCmdLine   string
+		output          string
+		expectedErr     error
+	}{
+		{
+			desc:   "Add new file, math.go, geo.go, math_test.go",
+			ctx:    context.Background(),
+			in:     "Tests PASS: TestA$",
+			cmdErr: nil, cmdSuccess: true,
+			setup: func() error {
+				_ = ioutil.WriteFile(filePath("math.go"), mathgo, 0600)
+				_ = ioutil.WriteFile(filePath("geo.go"), geogo, 0600)
+				return ioutil.WriteFile(filePath("math_test.go"), math_test_go, 0600)
+			},
+			tearDown: func() error {
+				_ = gitCmdRun("add", "math.go", "math_test.go")
+				return gitCmdRun("commit", "-m", "add files")
+			},
+			commitCmdLine: "git -C /tmp/test_commit_changes_task commit -m 'auto_commit! Perimeter TestMin min sub'",
+			output:        "'auto_commit! Perimeter TestMin min sub'",
+		},
+		// TODO add more test case
+	}
+
+	for i, tc := range cases {
+		// setup()
+		execTestHelper(t, i, tc.desc, tc.setup)
+		tc.ctx = context.WithValue(tc.ctx, prevTaskOutputKey, tc.in)
+		cmd := NewMockCommand(tc.cmdErr, tc.cmdSuccess)
+		output, err := CommitChanges(testDir, cmd.New)(tc.ctx)
+
+		// teardown()
+		execTestHelper(t, i, tc.desc, tc.tearDown)
+		if isUnexpectedErr(t, i, tc.desc, tc.expectedErr, err) {
+			continue
+		}
+		cmdLineStr := strings.Join(cmd.GetArgs(), " ")
+		if tc.commitCmdLine != cmdLineStr {
+			t.Errorf("case [%d] %s\nexpected %# v\ngot %# v", i, tc.desc, tc.commitCmdLine, cmdLineStr)
+		}
+		if tc.output != output {
 			t.Errorf("case [%d] %s\nexpected %# v\ngot %# v", i, tc.desc, tc.output, output)
 		}
 	}

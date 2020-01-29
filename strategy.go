@@ -37,8 +37,10 @@ func NewGitDiffStrategy(workDir string) *GitDiffStrategy {
 }
 
 // TODO test on different modules and Gopath version
-// TODO feature auto commit on test pass
 // TODO improve performance, TestsToRun testing takes more than 2s
+// TODO maybe exclude tests on func main changes
+// TODO imporove messages on test pass, build fails, no tests found
+// TODO uneffected tests running on CommitChangeTask change
 func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string, subTestsList []string, err error) {
 	changes, err := gds.gitCmd.Diff(ctx)
 	if err != nil {
@@ -59,7 +61,6 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		// no changes to test
 		return
 	}
-
 	fileInfos := map[string]FileInfo{}
 	for _, change := range changes {
 		info, ok := fileInfos[change.fpath]
@@ -73,12 +74,12 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		}
 	}
 
-	// TODO to not run if changes are same, cache prev run
 	changedBlocks, cerr := changesToFileBlocks(changes, fileInfos)
 	if cerr != nil {
 		err = fmt.Errorf("changesToFileBlocks error %s", cerr)
 		return
 	}
+
 	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(ctx, gds.workDir)
 	if analyzeErr != nil {
 		err = fmt.Errorf("analyzeGoCode error %s", analyzeErr)
@@ -89,15 +90,21 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 	// find nodes from changed blocks
 	changedNodes := map[*callgraph.Node]bool{}
 	for pkgFname, info := range changedBlocks {
-		fname := filePathToPkg[pkgFname]
+		pkgName := filePathToPkg[pkgFname]
 		for _, block := range info.blocks {
 			for fn := range graph.Nodes {
 				if fn == nil || fn.Package() == nil {
 					continue
 				}
-				if fn.Name() == block.name && fn.Package().Pkg.Path() == fname {
+				// TODO refactor
+				if fn.Package().Pkg.Path() == pkgName {
 					// store all nodes
-					changedNodes[graph.Nodes[fn]] = true
+					if block.typ&BlockFunc > 0 && fn.Name() == block.name {
+						changedNodes[graph.Nodes[fn]] = true
+					} else if block.typ&BlockMethod > 0 && len(fn.Params) > 0 && strings.HasSuffix(fn.Params[0].Type().String()+"."+fn.Name(), pkgName+"."+block.name) {
+						changedNodes[graph.Nodes[fn]] = true
+					}
+
 				}
 			}
 		}

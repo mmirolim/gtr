@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 )
 
@@ -18,12 +17,6 @@ var (
 // TODO output to stdout with gtr prefix
 func main() {
 	flag.Parse()
-	cmd := exec.Command("git", "status")
-	err := cmd.Run()
-	if err != nil {
-		fmt.Printf("git status error %+v\n", err) // output for debug
-		os.Exit(1)
-	}
 	workDir := "."
 	diffStrategy := NewGitDiffStrategy(workDir)
 	notifier := NewDesktopNotificator(true, 2000)
@@ -33,10 +26,10 @@ func main() {
 		*testBinaryArgs,
 		true,
 	)
-
+	autoCommitTask := NewTask("auto_commit_on_test_pass", CommitChanges(workDir, NewOsCommand))
 	watcher, err := NewWatcher(
 		workDir,
-		[]Task{testRunner, notifier},
+		[]Task{testRunner, notifier, autoCommitTask, notifier},
 		*delay,
 		splitStr(*excludePrefixes, ","),
 		splitStr(*excludeDirs, ","),

@@ -156,6 +156,10 @@ LOOP:
 			if w.skipChange(e, lastModFile, lastModTime) {
 				continue LOOP
 			}
+			// add some delay, there is a race
+			// for git index lock in current dir, if some other process
+			// use git
+			time.Sleep(w.delay / 10)
 			log.Println("File changed:", e.Name)
 			lastModFile = e.Name
 			lastModTime = time.Now()

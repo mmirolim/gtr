@@ -302,6 +302,8 @@ func F() string {
 			},
 			outTests: []string{"TestPkgAFunc"}, outSubTests: nil,
 		},
+		// TODO add case for method changes
+		// TODO add case with methods in different packages
 	}
 	gitDiffStrategy := setup()
 	for i, tc := range cases {
