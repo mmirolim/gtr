@@ -238,7 +238,7 @@ func F() string {
 	pkgBFilePath := filepath.Join("pkgb", "f.go")
 
 	// setup
-	testDir := filepath.Join(os.TempDir(), "test_changes_to_file_blocks")
+	testDir := filepath.Join(os.TempDir(), "test_diff_strategy_tests_to_run")
 	gitCmdRun := GitCmdFactory(testDir)
 
 	files := map[string][]byte{

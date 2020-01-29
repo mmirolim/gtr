@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"io/ioutil"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -60,17 +59,12 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		// no changes to test
 		return
 	}
-	var fdata []byte
+
 	fileInfos := map[string]FileInfo{}
 	for _, change := range changes {
 		info, ok := fileInfos[change.fpath]
 		if !ok {
-			fdata, err = ioutil.ReadFile(filepath.Join(gds.workDir, change.fpath))
-			if err != nil {
-				err = fmt.Errorf("TestsToRun ReadFile error %s", err)
-				return
-			}
-			info, err = getFileInfo(change.fpath, fdata)
+			info, err = getFileInfo(filepath.Join(gds.workDir, change.fpath), nil)
 			if err != nil {
 				err = fmt.Errorf("getFileInfo error %s", err)
 				return
@@ -94,8 +88,8 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 	graph := cha.CallGraph(prog)
 	// find nodes from changed blocks
 	changedNodes := map[*callgraph.Node]bool{}
-	for _, info := range changedBlocks {
-		fname := filePathToPkg[info.fname]
+	for pkgFname, info := range changedBlocks {
+		fname := filePathToPkg[pkgFname]
 		for _, block := range info.blocks {
 			for fn := range graph.Nodes {
 				if fn == nil || fn.Package() == nil {

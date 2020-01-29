@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"path/filepath"
 	"regexp"
 	"strconv"
 
@@ -178,15 +179,18 @@ type FileBlock struct {
 // getFileInfo returns FileInfo struct
 // with entities divided in blocks according to line position
 // blocks sorted by start line
-func getFileInfo(fname string, file []byte) (FileInfo, error) {
+// if src is nil, reads from fname
+func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 	var fileInfo FileInfo
 	var blocks []FileBlock
+
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "", file, parser.ParseComments)
+	f, err := parser.ParseFile(fset, fname, src, parser.ParseComments)
 	if err != nil {
 		return fileInfo, err
 	}
 	fileInfo.pkgName = f.Name.Name
+	_, fname = filepath.Split(fname)
 	fileInfo.fname = fname
 	for _, decl := range f.Decls {
 		var block FileBlock
