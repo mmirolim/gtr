@@ -75,7 +75,7 @@ func (c *MockCommand) New(ctx context.Context, bin string, args ...string) Comma
 }
 
 func (c *MockCommand) GetArgs() []string {
-	return c.args
+	return append([]string{c.bin}, c.args...)
 }
 
 func (c *MockCommand) Run() error {
