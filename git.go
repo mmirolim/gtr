@@ -68,6 +68,7 @@ func GitCmdFactory(workDir string) func(args ...string) error {
 	}
 }
 
+// TODO maybe use branch as config gtr-no-commit, will suspend from commiting
 // TODO do not show no test to run
 // CommitChanges returns committing task
 func CommitChanges(workDir string, newCmd CommandCreator) func(context.Context) (string, error) {

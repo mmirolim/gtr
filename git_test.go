@@ -398,6 +398,7 @@ func TestCommitChangesTask(t *testing.T) {
 			},
 			commitCmdLine: "git -C /tmp/test_commit_changes_task commit -m 'auto_commit! Perimeter TestMin min sub'",
 			output:        "'auto_commit! Perimeter TestMin min sub'",
+			expectedErr:   nil,
 		},
 		// TODO add more test case
 	}

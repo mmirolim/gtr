@@ -14,6 +14,7 @@ var (
 	excludeDirs     = flag.String("exclude-dir", "vendor,node_modules", "prefixes to exclude sep by comma")
 )
 
+// TODO add flag for turning of auto commit
 // TODO output to stdout with gtr prefix
 func main() {
 	flag.Parse()

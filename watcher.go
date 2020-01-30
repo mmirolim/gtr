@@ -96,7 +96,7 @@ func (w *Watcher) skipChange(
 		if strings.HasPrefix(name, prefix) {
 			return true
 		}
-	}
+	} // TODO
 	return false
 }
 
@@ -201,7 +201,7 @@ func (w *Watcher) add(path string) error {
 		return filepath.SkipDir
 	}
 	// add watcher to dir
-	err := w.wt.Add(path)
+	err := w.wt.Add(path) // TEST
 	if err != nil {
 		fmt.Printf("could not add dir to watcher %s\n", err)
 		return filepath.SkipDir
@@ -211,13 +211,13 @@ func (w *Watcher) add(path string) error {
 }
 
 // recursively adds directories to a watcher
-func (w *Watcher) addDirs() error {
+func (w *Watcher) addDirs() error { // TODO
 	// walk current directory and if there is other directory add watcher to it
 	err := filepath.Walk(w.workDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !info.IsDir() { // TODO
 			return nil
 		}
 		err = w.add(path)
@@ -227,7 +227,7 @@ func (w *Watcher) addDirs() error {
 		w.dirs[path] = true
 		return nil
 	})
-
+	// TOOD check
 	return err
 }
 

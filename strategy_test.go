@@ -14,12 +14,12 @@ import (
 )
 
 func TestChangesToFileBlocks(t *testing.T) {
-	f1_Blocks := []FileBlock{
+	f1Blocks := []FileBlock{
 		{typ: BlockFunc, name: "main", start: 6, end: 8},
 		{typ: BlockFunc, name: "add", start: 10, end: 12},
 	}
 
-	f2_Blocks := []FileBlock{
+	f2Blocks := []FileBlock{
 		{typ: BlockFunc, name: "sub", start: 6, end: 8},
 		{typ: BlockFunc, name: "min", start: 10, end: 16},
 		{typ: BlockFunc, name: "min", start: 18, end: 23},
@@ -28,10 +28,10 @@ func TestChangesToFileBlocks(t *testing.T) {
 
 	fileInfos := map[string]FileInfo{
 		"f1": FileInfo{
-			fname: "f1", pkgName: "main", endLine: 15, blocks: f1_Blocks,
+			fname: "f1", pkgName: "main", endLine: 15, blocks: f1Blocks,
 		},
 		"f2": FileInfo{
-			fname: "f2", pkgName: "main", endLine: 32, blocks: f2_Blocks,
+			fname: "f2", pkgName: "main", endLine: 32, blocks: f2Blocks,
 		},
 	}
 	cases := []struct {
@@ -49,7 +49,7 @@ func TestChangesToFileBlocks(t *testing.T) {
 			},
 			fileInfos: fileInfos,
 			output: map[string]FileInfo{
-				"f1": {"f1", "main", 15, f1_Blocks},
+				"f1": {"f1", "main", 15, f1Blocks},
 			},
 		},
 		{
@@ -61,8 +61,8 @@ func TestChangesToFileBlocks(t *testing.T) {
 			},
 			fileInfos: fileInfos,
 			output: map[string]FileInfo{
-				"f1": {"f1", "main", 15, []FileBlock{f1_Blocks[0]}},
-				"f2": {"f2", "main", 32, []FileBlock{f2_Blocks[2], f2_Blocks[3]}},
+				"f1": {"f1", "main", 15, []FileBlock{f1Blocks[0]}},
+				"f2": {"f2", "main", 32, []FileBlock{f2Blocks[2], f2Blocks[3]}},
 			},
 		},
 		{
@@ -72,7 +72,7 @@ func TestChangesToFileBlocks(t *testing.T) {
 			},
 			fileInfos: fileInfos,
 			output: map[string]FileInfo{
-				"f1": {"f1", "main", 15, f1_Blocks},
+				"f1": {"f1", "main", 15, f1Blocks},
 			},
 		},
 	}
@@ -278,49 +278,49 @@ func TestPkgBMethodOnValue(t *testing.T) {
 `)
 	var pkgBFileUpdateF = []byte(`package pkgb
 
-type A struct {
-	b int
-}
+	type A struct {
+		b int
+	}
 
-func NewA() A {
-	return A{}
-}
+	func NewA() A {
+		return A{}
+	}
 
-func (a *A) MethodOnPointer() int {
-	return a.b
-}
+	func (a *A) MethodOnPointer() int {
+		return a.b
+	}
 
-func (a A) MethodOnValue() int {
-	return a.b
-}
+	func (a A) MethodOnValue() int {
+		return a.b
+	}
 
-func F() string {
-	return "pkgb.F():updated"
-}
-`)
+	func F() string {
+		return "pkgb.F():updated"
+	}
+	`)
 
 	var pkgBFileUpdateMethods = []byte(`package pkgb
 
-type A struct {
-	b int
-}
+	type A struct {
+		b int
+	}
 
-func NewA() A {
-	return A{}
-}
+	func NewA() A {
+		return A{}
+	}
 
-func (a *A) MethodOnPointer() int {
-	return a.b + 1
-}
+	func (a *A) MethodOnPointer() int {
+		return a.b + 1
+	}
 
-func (a A) MethodOnValue() int {
-	return a.b + 1
-}
+	func (a A) MethodOnValue() int {
+		return a.b + 1
+	}
 
-func F() string {
-	return "pkgb.F():updated"
-}
-`)
+	func F() string {
+		return "pkgb.F():updated"
+	}
+	`)
 
 	pkgAFilePath := filepath.Join("pkga", "f.go")
 	pkgATestFilePath := filepath.Join("pkga", "f_test.go")
@@ -370,7 +370,7 @@ func F() string {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit file_a.go changes")
 			},
-			outTests: []string{"TestAdd", "TestSub"}, outSubTests: nil, // should be nil?
+			outTests: []string{"TestAdd", "TestSub"}, outSubTests: nil,
 		},
 		{
 			desc: "Update file_b.go file max func",
@@ -379,20 +379,21 @@ func F() string {
 					filepath.Join(testDir, "file_b.go"), fileBUpdateMax, 0600)
 			},
 			tearDown: func() error {
-				return gitCmdRun("commit", "-am", "commit file_b.go changes")
+				return gitCmdRun("commit", "-am", "commit file_b.go changes") // Test
 			},
 			outTests: []string{"TestMinMax"}, outSubTests: []string{"max"},
 		},
 		{
 			desc: "Check named imports",
 			setup: func() error {
+
 				return ioutil.WriteFile(
 					filepath.Join(testDir, pkgBFilePath), pkgBFileUpdateF, 0600)
 			},
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit changes")
 			},
-			outTests: []string{"TestPkgAFunc"}, outSubTests: nil,
+			outTests: []string{"TestPkgAFunc", "TestPkgBMethodOnValue"}, outSubTests: nil,
 		},
 		{
 			desc: "Update pkgb.A type methods",
@@ -423,13 +424,13 @@ func F() string {
 		sort.Strings(tc.outTests)
 		sort.Strings(testsList)
 		if !reflect.DeepEqual(tc.outTests, testsList) {
-			t.Errorf("case [%d]\nexpected Tests %+v\ngot %+v", i, tc.outTests, testsList)
+			t.Errorf("case [%d] %s\nexpected Tests %+v\ngot %+v", i, tc.desc, tc.outTests, testsList)
 		}
 
 		sort.Strings(tc.outSubTests)
 		sort.Strings(subTestsList)
 		if !reflect.DeepEqual(tc.outSubTests, subTestsList) {
-			t.Errorf("case [%d]\nexpected Subtests %+v\ngot %+v", i, tc.outSubTests, subTestsList)
+			t.Errorf("case [%d] %s\nexpected Subtests %+v\ngot %+v", i, tc.desc, tc.outSubTests, subTestsList)
 		}
 	}
 

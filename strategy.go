@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/callgraph"
-	"golang.org/x/tools/go/callgraph/cha"
 	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )
@@ -63,6 +63,7 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		// no changes to test
 		return
 	}
+
 	fileInfos := map[string]FileInfo{}
 	for _, change := range changes {
 		info, ok := fileInfos[change.fpath]
@@ -75,37 +76,55 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 			fileInfos[change.fpath] = info
 		}
 	}
-
 	changedBlocks, cerr := changesToFileBlocks(changes, fileInfos)
 	if cerr != nil {
 		err = fmt.Errorf("changesToFileBlocks error %s", cerr)
 		return
 	}
 
-	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(ctx, gds.workDir)
+	// TODO prog remove from API
+	moduleName, filePathToPkg, allSubtests, _, allPkgs, analyzeErr := analyzeGoCode(ctx, gds.workDir)
 	if analyzeErr != nil {
 		err = ErrBuildFailed
 		return
 	}
 	// TODO make analyze configurable
-	graph := cha.CallGraph(prog)
+	// TODO test with libraries without entry point
+	var testPkgs []*ssa.Package
+	for _, pkg := range allPkgs {
+		if strings.HasSuffix(pkg.Pkg.Path(), ".test") {
+			testPkgs = append(testPkgs, pkg)
+		}
+	}
+	config := &pointer.Config{
+		Mains:          ssautil.MainPackages(testPkgs),
+		BuildCallGraph: true,
+	}
+
+	result, err := pointer.Analyze(config)
+	if err != nil {
+		panic(err)
+	}
+	graph := result.CallGraph
+	graph.DeleteSyntheticNodes()
 	// find nodes from changed blocks
 	changedNodes := map[*callgraph.Node]bool{}
-	for pkgFname, info := range changedBlocks {
-		pkgName := filePathToPkg[pkgFname]
-		for _, block := range info.blocks {
-			for fn := range graph.Nodes {
-				if fn == nil || fn.Package() == nil {
-					continue
-				}
-				if fn.Package().Pkg.Path() != pkgName {
-					continue
-				}
+	for fn := range graph.Nodes {
+		if fn == nil || fn.Package() == nil {
+			continue
+		}
+		pkgPath := fn.Package().Pkg.Path()
+		for fname, info := range changedBlocks {
+			if pkgPath != filePathToPkg[fname] {
+				continue
+			}
+			for _, block := range info.blocks {
 				// store all nodes
 				if (block.typ&BlockFunc > 0 && fn.Name() == block.name) ||
 					(block.typ&BlockMethod > 0 && len(fn.Params) > 0 &&
 						strings.HasSuffix(fn.Params[0].Type().String()+"."+fn.Name(), block.name)) {
 					changedNodes[graph.Nodes[fn]] = true
+					break
 				}
 			}
 		}
@@ -115,12 +134,14 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		return
 	}
 	allTests := getAllTestsInModule(moduleName, graph)
+
 	testsSet := map[string]bool{}
 	subTests := map[string]bool{}
 	for tnode := range allTests {
 		callgraph.PathSearch(tnode, func(n *callgraph.Node) bool {
 			if changedNodes[n] {
 				funName := tnode.Func.Name()
+				// TODO change to test for Run func $ is only for anon funcs
 				if idx := strings.IndexByte(funName, '$'); idx != -1 {
 					subTestID, err := strconv.Atoi(funName[idx+1:])
 					if err != nil {
@@ -181,6 +202,13 @@ func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[s
 			if (start >= block.start && start <= block.end) ||
 				(end >= block.start && end <= block.end) ||
 				(block.start >= start && block.end <= end) {
+				if len(changeInfo.blocks) > 0 {
+					last := changeInfo.blocks[len(changeInfo.blocks)-1]
+					if last.name == block.name && last.typ == block.typ {
+						// skip multiple changes for same file block
+						continue
+					}
+				}
 				changeInfo.blocks = append(changeInfo.blocks, block)
 			}
 		}
@@ -198,6 +226,7 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 	filePathToPkg map[string]string,
 	allSubtests map[string][]string,
 	prog *ssa.Program,
+	allPkgs []*ssa.Package,
 	err error,
 ) {
 	cfg := &packages.Config{
@@ -229,6 +258,7 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 			return
 		}
 	}
+
 	allSubtests = map[string][]string{}
 	moduleName = pkgs[0].ID
 	for i := 0; i < len(pkgs); i++ {
@@ -290,7 +320,7 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 			}
 		}
 	}
-	prog, _ = ssautil.Packages(pkgs, ssa.NaiveForm|ssa.SanityCheckFunctions)
+	prog, allPkgs = ssautil.Packages(pkgs, ssa.NaiveForm|ssa.SanityCheckFunctions)
 	prog.Build()
 	return
 }
