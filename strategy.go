@@ -17,6 +17,8 @@ import (
 	"golang.org/x/tools/go/ssa/ssautil"
 )
 
+var ErrBuildFailed = errors.New("build failed")
+
 type Strategy interface {
 	TestsToRun(context.Context) (tests []string, subTests []string, err error)
 }
@@ -82,7 +84,7 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 
 	moduleName, filePathToPkg, allSubtests, prog, analyzeErr := analyzeGoCode(ctx, gds.workDir)
 	if analyzeErr != nil {
-		err = fmt.Errorf("analyzeGoCode error %s", analyzeErr)
+		err = ErrBuildFailed
 		return
 	}
 	// TODO make analyze configurable

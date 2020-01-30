@@ -29,7 +29,12 @@ func TestGoTestRunnerRun(t *testing.T) {
 		output      string
 		err         error
 	}{
-		{desc: "No file changes", cmdSuccess: true, output: "no test found to run"},
+		{
+			desc:       "No file changes",
+			cmdSuccess: true,
+			output:     "No test found to run",
+			err:        nil,
+		},
 		{
 			desc:       "2 top level tests pass",
 			cmdSuccess: true,

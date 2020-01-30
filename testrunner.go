@@ -39,11 +39,13 @@ func (tr *GoTestRunner) ID() string {
 func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	tests, subTests, err := tr.strategy.TestsToRun(ctx)
 	if err != nil {
-		// TODO report build fail?
+		if err == ErrBuildFailed {
+			return "Build Failed", nil
+		}
 		return "", fmt.Errorf("strategy error %v", err)
 	}
 	if len(tests) == 0 && len(subTests) == 0 {
-		return "no test found to run", nil
+		return "No test found to run", nil
 	}
 
 	testNames := tr.joinTestAndSubtest(tests, subTests)
