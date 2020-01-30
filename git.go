@@ -68,6 +68,7 @@ func GitCmdFactory(workDir string) func(args ...string) error {
 	}
 }
 
+// TODO do not show no test to run
 // CommitChanges returns committing task
 func CommitChanges(workDir string, newCmd CommandCreator) func(context.Context) (string, error) {
 	return func(ctx context.Context) (string, error) {

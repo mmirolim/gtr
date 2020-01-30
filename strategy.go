@@ -96,15 +96,14 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 				if fn == nil || fn.Package() == nil {
 					continue
 				}
-				// TODO refactor
-				if fn.Package().Pkg.Path() == pkgName {
-					// store all nodes
-					if block.typ&BlockFunc > 0 && fn.Name() == block.name {
-						changedNodes[graph.Nodes[fn]] = true
-					} else if block.typ&BlockMethod > 0 && len(fn.Params) > 0 && strings.HasSuffix(fn.Params[0].Type().String()+"."+fn.Name(), pkgName+"."+block.name) {
-						changedNodes[graph.Nodes[fn]] = true
-					}
-
+				if fn.Package().Pkg.Path() != pkgName {
+					continue
+				}
+				// store all nodes
+				if (block.typ&BlockFunc > 0 && fn.Name() == block.name) ||
+					(block.typ&BlockMethod > 0 && len(fn.Params) > 0 &&
+						strings.HasSuffix(fn.Params[0].Type().String()+"."+fn.Name(), block.name)) {
+					changedNodes[graph.Nodes[fn]] = true
 				}
 			}
 		}

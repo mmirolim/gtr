@@ -207,26 +207,115 @@ import (
 	rename "git-diff-strategy-test-run/pkgb"
 )
 
+type A struct {
+	a int
+}
+
+func NewA() A {
+	return A{}
+}
+
+func (a *A) MethodOnPointer(c int) int {
+	return c + a.a
+}
+
+func (a A) MethodOnValue(c int) int {
+	return c + a.a
+}
+
 func F() string {
 	return "pkga.F()->" + rename.F()
 }
 `)
 	var pkgBFile = []byte(`package pkgb
 
+type A struct {
+	b int
+}
+
+func NewA() A {
+	return A{}
+}
+
+func (a *A) MethodOnPointer() int {
+	return a.b
+}
+
+func (a A) MethodOnValue() int {
+	return a.b
+}
+
 func F() string {
 	return "pkgb.F()"
 }
 `)
 	var pkgATestFile = []byte(`package pkga
-import "testing"
+
+import (
+        "testing"
+	rename "git-diff-strategy-test-run/pkgb"
+)
 
 func TestPkgAFunc(t *testing.T) {
 	if F() !=  "pkga.F()->pkgb.F"{
 		t.Error("unexpected result")
 	}
 }
+
+func TestPkgAMethodOnPointer(t *testing.T) {
+	a := NewA()
+	if a.MethodOnPointer(10) !=  10 {
+		t.Error("unexpected result")
+	}
+}
+
+func TestPkgBMethodOnValue(t *testing.T) {
+	a := rename.NewA()
+	if a.MethodOnValue() !=  1 {
+		t.Error("unexpected result")
+	}
+}
 `)
-	var pkgBFileUpdate = []byte(`package pkgb
+	var pkgBFileUpdateF = []byte(`package pkgb
+
+type A struct {
+	b int
+}
+
+func NewA() A {
+	return A{}
+}
+
+func (a *A) MethodOnPointer() int {
+	return a.b
+}
+
+func (a A) MethodOnValue() int {
+	return a.b
+}
+
+func F() string {
+	return "pkgb.F():updated"
+}
+`)
+
+	var pkgBFileUpdateMethods = []byte(`package pkgb
+
+type A struct {
+	b int
+}
+
+func NewA() A {
+	return A{}
+}
+
+func (a *A) MethodOnPointer() int {
+	return a.b + 1
+}
+
+func (a A) MethodOnValue() int {
+	return a.b + 1
+}
 
 func F() string {
 	return "pkgb.F():updated"
@@ -298,12 +387,25 @@ func F() string {
 			desc: "Check named imports",
 			setup: func() error {
 				return ioutil.WriteFile(
-					filepath.Join(testDir, pkgBFilePath), pkgBFileUpdate, 0600)
+					filepath.Join(testDir, pkgBFilePath), pkgBFileUpdateF, 0600)
+			},
+			tearDown: func() error {
+				return gitCmdRun("commit", "-am", "commit changes")
 			},
 			outTests: []string{"TestPkgAFunc"}, outSubTests: nil,
 		},
-		// TODO add case for method changes
-		// TODO add case with methods in different packages
+		{
+			desc: "Update pkgb.A type methods",
+			setup: func() error {
+				return ioutil.WriteFile(
+					filepath.Join(testDir, pkgBFilePath),
+					pkgBFileUpdateMethods, 0600)
+			},
+			tearDown: func() error {
+				return gitCmdRun("commit", "-am", "commit changes")
+			},
+			outTests: []string{"TestPkgBMethodOnValue"}, outSubTests: nil,
+		},
 	}
 	gitDiffStrategy := setup()
 	for i, tc := range cases {
