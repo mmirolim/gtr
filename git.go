@@ -43,8 +43,9 @@ func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
 	}
 	gitOut.Reset()
 	// get changes in go files
+	// -U0 zero lines around changes
 	// Disallow external diff drivers.
-	gitCmd = exec.CommandContext(ctx, "git", "-C", workdir, "diff", "--no-ext-diff")
+	gitCmd = exec.CommandContext(ctx, "git", "-C", workdir, "diff", "-U0", "--no-ext-diff")
 	gitCmd.Stdout = &gitOut
 	err = gitCmd.Run()
 	if err != nil {

@@ -49,7 +49,7 @@ func TestChangesToFileBlocks(t *testing.T) {
 			},
 			fileInfos: fileInfos,
 			output: map[string]FileInfo{
-				"f1": {"f1", "main", 15, f1_Blocks[1:]},
+				"f1": {"f1", "main", 15, f1_Blocks},
 			},
 		},
 		{

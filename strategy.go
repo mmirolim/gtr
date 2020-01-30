@@ -166,32 +166,20 @@ func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[s
 				changeInfo.blocks = append(changeInfo.blocks, block)
 				continue
 			}
-
-			start := change.start
-			end := change.count + start - 1
 			// changes are from unified diff format
-			// there are margins between start diff and end
+			// with 0 lines of context
+			start := change.start
+			end := change.count + start
 			if start < end {
-				if start > 1 { // not the first line
-					start += 2
-				}
-				if end < info.endLine { // not last line
-					end = end - 2
-				}
-			}
-			blockEnd := block.end
-			if block.start < block.end &&
-				block.typ&(BlockFunc|BlockMethod|BlockType) > 0 {
-				// not one liner, skip last line with }, le
-				blockEnd--
+				end--
 			}
 
 			if end < block.start {
 				break
 			}
-			if (start >= block.start && start <= blockEnd) ||
-				(end >= block.start && end <= blockEnd) ||
-				(block.start >= start && blockEnd <= end) {
+			if (start >= block.start && start <= block.end) ||
+				(end >= block.start && end <= block.end) ||
+				(block.start >= start && block.end <= end) {
 				changeInfo.blocks = append(changeInfo.blocks, block)
 			}
 		}

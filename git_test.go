@@ -282,7 +282,8 @@ func TestGetDiff(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
 			},
-			output: []Change{{"math.go", "math.go", 12, 10}, {"math_test.go", "math_test.go", 7, 10}},
+			output: []Change{{"math.go", "math.go", 15, 7},
+				{"math_test.go", "math_test.go", 10, 7}},
 		},
 		{
 			desc: "Update file math.go, update func min",
@@ -292,7 +293,11 @@ func TestGetDiff(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
 			},
-			output: []Change{{"math.go", "math.go", 2, 7}, {"math.go", "math.go", 10, 12}},
+			output: []Change{{"math.go", "math.go", 5, 0},
+				{"math.go", "math.go", 13, 2},
+				{"math.go", "math.go", 15, 0},
+				{"math.go", "math.go", 18, 0},
+			},
 		},
 		{
 			desc: "Multiple updates to file math.go",
@@ -303,14 +308,18 @@ func TestGetDiff(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
 			},
-			output: []Change{{"math.go", "math.go", 1, 9}, {"math.go", "math.go", 16, 8}},
+			output: []Change{{"math.go", "math.go", 4, 0},
+				{"math.go", "math.go", 6, 0},
+				{"math.go", "math.go", 18, 0},
+				{"math.go", "math.go", 20, 0},
+			},
 		},
 		{
 			desc: "Change func name in file geo.go",
 			setup: func() error {
 				return ioutil.WriteFile(filePath("geo.go"), geo_area_func_rename, 0600)
 			},
-			output: []Change{{"geo.go", "geo.go", 5, 6}},
+			output: []Change{{"geo.go", "geo.go", 8, 0}},
 		},
 	}
 
