@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -402,13 +403,13 @@ func TestCommitChangesTask(t *testing.T) {
 		},
 		// TODO add more test case
 	}
-
+	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
 	for i, tc := range cases {
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
 		tc.ctx = context.WithValue(tc.ctx, prevTaskOutputKey, tc.in)
 		cmd := NewMockCommand(tc.cmdErr, tc.cmdSuccess)
-		output, err := CommitChanges(testDir, cmd.New)(tc.ctx)
+		output, err := CommitChanges(testDir, cmd.New)(logger, tc.ctx)
 
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -360,6 +361,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 		pkgAFilePath: pkgAFile, pkgBFilePath: pkgBFile,
 		pkgATestFilePath: pkgATestFile,
 	}
+	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
 	setup := func() *GitDiffStrategy {
 		setupTestGitDir(t,
 			testDir, files,
@@ -368,7 +370,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 				pkgAFilePath, pkgBFilePath, pkgATestFilePath,
 			},
 		)
-		return NewGitDiffStrategy(testDir)
+		return NewGitDiffStrategy(testDir, logger)
 	}
 
 	// teardown

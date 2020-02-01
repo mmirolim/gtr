@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -25,13 +27,15 @@ var _ Strategy = (*GitDiffStrategy)(nil)
 type GitDiffStrategy struct {
 	workDir string
 	gitCmd  *GitCMD
+	log     *log.Logger
 }
 
 // TODO configure source code analyze algorithm
-func NewGitDiffStrategy(workDir string) *GitDiffStrategy {
+func NewGitDiffStrategy(workDir string, logger *log.Logger) *GitDiffStrategy {
 	return &GitDiffStrategy{
 		workDir: workDir,
 		gitCmd:  NewGitCMD(workDir),
+		log:     logger,
 	}
 }
 
@@ -67,6 +71,9 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		if !ok {
 			info, err = getFileInfo(filepath.Join(gds.workDir, change.fpath), nil)
 			if err != nil {
+				fmt.Fprintln(os.Stderr, "\n>>>>>>>>>> Build Failed >>>>>>>>>")
+				fmt.Fprintf(os.Stderr, "ERROR: %s", err)
+				fmt.Fprintln(os.Stderr, "\n>>>>>>>>>>>>>>>>>")
 				err = fmt.Errorf("getFileInfo error %s", err)
 				return
 			}
@@ -97,10 +104,10 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		Mains:          ssautil.MainPackages(testPkgs),
 		BuildCallGraph: true,
 	}
-
-	result, err := pointer.Analyze(config)
+	var result *pointer.Result
+	result, err = pointer.Analyze(config)
 	if err != nil {
-		panic(err)
+		return
 	}
 	graph := result.CallGraph
 	graph.DeleteSyntheticNodes()
@@ -127,7 +134,7 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		}
 	}
 	if len(changedNodes) == 0 {
-		fmt.Println("no updated nodes found")
+		gds.log.Println("no updated nodes found")
 		return
 	}
 	allTests := getAllTestsInModule(moduleName, graph)
@@ -252,11 +259,12 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 	if err != nil {
 		return
 	}
+
 	for i := range pkgs {
 		if len(pkgs[i].Errors) > 0 {
-			fmt.Println("Module build failed\n>>>>>>>>>>>>>>>>>")
+			fmt.Fprintln(os.Stderr, "\n>>>>>>>>>> Build Failed >>>>>>>>>")
 			packages.PrintErrors(pkgs)
-			fmt.Println(">>>>>>>>>>>>>>>>>")
+			fmt.Fprintln(os.Stderr, "\n>>>>>>>>>>>>>>>>>")
 			err = errors.New("packages.Load error")
 			return
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,7 +23,7 @@ func TestWatcherAddDirs(t *testing.T) {
 			_ = os.RemoveAll(testDir)
 		}
 	}()
-
+	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
 	var watcher *Watcher
 	var err error
 	cases := []struct {
@@ -42,7 +43,7 @@ func TestWatcherAddDirs(t *testing.T) {
 					return err
 				}
 
-				watcher, err = NewWatcher(testDir, nil, 0, nil, nil)
+				watcher, err = NewWatcher(testDir, nil, 0, nil, nil, logger)
 				return err
 			},
 			tearDown: func() error {
@@ -53,7 +54,7 @@ func TestWatcherAddDirs(t *testing.T) {
 		{
 			desc: "Exclude add directory from watching",
 			setup: func() error {
-				watcher, err = NewWatcher(testDir, nil, 0, nil, []string{"add"})
+				watcher, err = NewWatcher(testDir, nil, 0, nil, []string{"add"}, logger)
 				return err
 			},
 			tearDown: func() error {
@@ -162,6 +163,7 @@ func TestWatcherRunTasks(t *testing.T) {
 	var taskOutput string
 	var taskErr error
 
+	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
 	taskCanceledErr := errors.New("task canceled")
 	cases := []struct {
 		desc               string
@@ -180,13 +182,13 @@ func TestWatcherRunTasks(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				task1 := NewTask("task1", func(ctx context.Context) (string, error) {
+				task1 := NewTask("task1", func(log *log.Logger, ctx context.Context) (string, error) {
 					<-ctx.Done()
 					taskErr = taskCanceledErr
 					return taskErr.Error(), taskErr
 
-				})
-				watcher, _ = NewWatcher(testDir, []Task{task1}, 0, nil, nil)
+				}, logger)
+				watcher, _ = NewWatcher(testDir, []Task{task1}, 0, nil, nil, logger)
 				_ = watcher.addDirs()
 				// run tasks
 				go watcher.runTasks()
@@ -202,7 +204,7 @@ func TestWatcherRunTasks(t *testing.T) {
 		{
 			desc: "Run multiple tasks in order file > task1 > task2",
 			setup: func() error {
-				task1 := NewTask("task1", func(ctx context.Context) (string, error) {
+				task1 := NewTask("task1", func(log *log.Logger, ctx context.Context) (string, error) {
 					fname, ok := ctx.Value(changedFileNameKey).(string)
 					if !ok {
 						return "", taskCanceledErr
@@ -210,8 +212,8 @@ func TestWatcherRunTasks(t *testing.T) {
 					taskOutput = fname + ">task1"
 					return taskOutput, nil
 
-				})
-				task2 := NewTask("task2", func(ctx context.Context) (string, error) {
+				}, logger)
+				task2 := NewTask("task2", func(log *log.Logger, ctx context.Context) (string, error) {
 					prevOut, ok := ctx.Value(prevTaskOutputKey).(string)
 					if !ok {
 						return "", taskCanceledErr
@@ -219,8 +221,8 @@ func TestWatcherRunTasks(t *testing.T) {
 					taskOutput = prevOut + ">task2"
 					return taskOutput, nil
 
-				})
-				watcher, _ = NewWatcher(testDir, []Task{task1, task2}, 0, nil, nil)
+				}, logger)
+				watcher, _ = NewWatcher(testDir, []Task{task1, task2}, 0, nil, nil, logger)
 				_ = watcher.addDirs()
 				// run tasks
 				go watcher.runTasks()
@@ -237,10 +239,10 @@ func TestWatcherRunTasks(t *testing.T) {
 		{
 			desc: "Do not trigger task on none go files",
 			setup: func() error {
-				gotask := NewTask("gotask", func(ctx context.Context) (string, error) {
+				gotask := NewTask("gotask", func(log *log.Logger, ctx context.Context) (string, error) {
 					return "should not run", errors.New("should not run")
-				})
-				watcher, _ = NewWatcher(testDir, []Task{gotask}, 0, nil, nil)
+				}, logger)
+				watcher, _ = NewWatcher(testDir, []Task{gotask}, 0, nil, nil, logger)
 				_ = watcher.addDirs()
 				// run tasks
 				go watcher.runTasks()
@@ -256,7 +258,7 @@ func TestWatcherRunTasks(t *testing.T) {
 		{
 			desc: "Add new directory to a watch list",
 			setup: func() error {
-				task := NewTask("task", func(ctx context.Context) (string, error) {
+				task := NewTask("task", func(log *log.Logger, ctx context.Context) (string, error) {
 					fname := ctx.Value(changedFileNameKey).(string)
 
 					_, file := filepath.Split(fname)
@@ -265,8 +267,8 @@ func TestWatcherRunTasks(t *testing.T) {
 					}
 					taskOutput = "OK"
 					return taskOutput, nil
-				})
-				watcher, _ = NewWatcher(testDir, []Task{task}, 0, nil, nil)
+				}, logger)
+				watcher, _ = NewWatcher(testDir, []Task{task}, 0, nil, nil, logger)
 				_ = watcher.addDirs()
 				// run tasks
 				go watcher.runTasks()
@@ -288,11 +290,11 @@ func TestWatcherRunTasks(t *testing.T) {
 		{
 			desc: "Remove deleted directory from a watch list",
 			setup: func() error {
-				task := NewTask("task_return_dirs", func(ctx context.Context) (string, error) {
+				task := NewTask("task_return_dirs", func(log *log.Logger, ctx context.Context) (string, error) {
 					taskOutput = strconv.Itoa(len(watcher.dirs))
 					return taskOutput, nil
-				})
-				watcher, _ = NewWatcher(testDir, []Task{task}, 0, nil, nil)
+				}, logger)
+				watcher, _ = NewWatcher(testDir, []Task{task}, 0, nil, nil, logger)
 				_ = watcher.addDirs()
 				// run tasks
 				go watcher.runTasks()

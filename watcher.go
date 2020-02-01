@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"path"
@@ -38,6 +37,7 @@ type Watcher struct {
 	excludeFilePrefixes []string
 	excludeDirs         []string
 	quit                chan bool
+	log                 *log.Logger
 }
 
 func NewWatcher(
@@ -46,6 +46,7 @@ func NewWatcher(
 	delay int,
 	excludeFilePrefixes []string,
 	excludeDirs []string,
+	logger *log.Logger,
 ) (*Watcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	return &Watcher{
@@ -57,12 +58,13 @@ func NewWatcher(
 		excludeFilePrefixes: excludeFilePrefixes,
 		excludeDirs:         excludeDirs,
 		quit:                make(chan bool),
+		log:                 logger,
 	}, err
 }
 
 // Blocks
 func (w *Watcher) Run() error {
-	fmt.Println("watcher running...")
+	w.log.Println("watcher running...")
 	// watch directories recursively
 	err := w.addDirs()
 	if err != nil {
@@ -149,7 +151,7 @@ LOOP:
 			if info.IsDir() {
 				err := w.add(e.Name)
 				if err != nil {
-					fmt.Printf("watcher add unexpected err %+v\n", err) // output for debug
+					w.log.Printf("watcher add unexpected err %+v\n", err) // output for debug
 				}
 				continue LOOP
 			}
@@ -160,7 +162,7 @@ LOOP:
 			// for git index lock in current dir, if some other process
 			// use git
 			time.Sleep(w.delay / 10)
-			log.Println("File changed:", e.Name)
+			w.log.Println("File changed:", e.Name)
 			lastModFile = e.Name
 			lastModTime = time.Now()
 			if cancel != nil {
@@ -176,20 +178,20 @@ LOOP:
 				// run tasks in provided sequence
 				for _, task := range w.tasks {
 					ctx = context.WithValue(ctx, prevTaskOutputKey, output)
-					fmt.Printf("Run task.ID %+v\n", task.ID()) // output for debug
+					w.log.Printf("Run task.ID %+v\n", task.ID()) // output for debug
 					output, err = task.Run(ctx)
 					if err != nil {
-						fmt.Printf("stop pipeline Task.ID: %s returned err %+v\n", task.ID(), err) // output for debug
+						w.log.Printf("stop pipeline Task.ID: %s returned err %+v\n", task.ID(), err) // output for debug
 						break
 					}
 				}
 				// add loging
-				fmt.Println("tasks executed")
+				w.log.Println("tasks executed")
 			}()
 
 		case err := <-w.wt.Errors:
 			if err != nil {
-				log.Println("Error:", err)
+				w.log.Println("Error:", err)
 			}
 		}
 	}
@@ -203,7 +205,7 @@ func (w *Watcher) add(path string) error {
 	// add watcher to dir
 	err := w.wt.Add(path) // TEST
 	if err != nil {
-		fmt.Printf("could not add dir to watcher %s\n", err)
+		w.log.Printf("could not add dir to watcher %s\n", err)
 		return filepath.SkipDir
 	}
 	w.dirs[path] = true
@@ -237,13 +239,17 @@ func (w *Watcher) Stop() error {
 	return w.wt.Close()
 }
 
-func NewTask(id string, fn func(context.Context) (string, error)) Task {
-	return taskAdapter{id, fn}
+func NewTask(id string,
+	fn func(*log.Logger, context.Context) (string, error),
+	logger *log.Logger,
+) Task {
+	return taskAdapter{id, fn, logger}
 }
 
 type taskAdapter struct {
-	id string
-	fn func(context.Context) (string, error)
+	id  string
+	fn  func(*log.Logger, context.Context) (string, error)
+	log *log.Logger
 }
 
 func (ta taskAdapter) ID() string {
@@ -251,5 +257,5 @@ func (ta taskAdapter) ID() string {
 }
 
 func (ta taskAdapter) Run(ctx context.Context) (string, error) {
-	return ta.fn(ctx)
+	return ta.fn(ta.log, ctx)
 }

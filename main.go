@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"runtime"
 )
@@ -20,18 +21,20 @@ var (
 func main() {
 	flag.Parse()
 	workDir := "."
-	diffStrategy := NewGitDiffStrategy(workDir)
+	logger := log.New(os.Stdout, "gtr: ", 0)
+	diffStrategy := NewGitDiffStrategy(workDir, logger)
 	notifier := NewDesktopNotificator(true, 2000)
 	testRunner := NewGoTestRunner(
 		diffStrategy,
 		NewOsCommand,
 		*testBinaryArgs,
-		true,
+		logger,
 	)
 	tasks := []Task{testRunner, notifier}
 	if len(*autoCommit) > 0 {
 		autoCommitTask := NewTask("AutoCommit",
-			CommitChanges(workDir, NewOsCommand))
+			CommitChanges(workDir, NewOsCommand),
+			logger)
 		tasks = append(tasks, autoCommitTask)
 		tasks = append(tasks, notifier)
 	}
@@ -41,6 +44,7 @@ func main() {
 		*delay,
 		splitStr(*excludePrefixes, ","),
 		splitStr(*excludeDirs, ","),
+		logger,
 	)
 	if err != nil {
 		fmt.Printf("NewWatcher error %+v\n", err) // output for debug

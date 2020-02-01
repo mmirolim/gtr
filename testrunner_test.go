@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"log"
+	"os"
 	"testing"
 )
 
@@ -70,7 +72,7 @@ func TestGoTestRunnerRun(t *testing.T) {
 			output:     "Tests PASS: /(group)",
 		},
 	}
-
+	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
 	var ds dummyStrategy
 	for i, tc := range cases {
 		ds.err = tc.strategyErr
@@ -78,7 +80,7 @@ func TestGoTestRunnerRun(t *testing.T) {
 		ds.subtests = tc.subTests
 		mockCmd := NewMockCommand(nil, tc.cmdSuccess)
 
-		runner := NewGoTestRunner(&ds, mockCmd.New, "", false)
+		runner := NewGoTestRunner(&ds, mockCmd.New, "", logger)
 		out, err := runner.Run(context.TODO())
 
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {

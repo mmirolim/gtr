@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"log"
 	"path/filepath"
 	"sort"
 
@@ -71,8 +72,11 @@ func GitCmdFactory(workDir string) func(args ...string) error {
 // TODO maybe use branch as config gtr-no-commit, will suspend from commiting
 // TODO do not show no test to run
 // CommitChanges returns committing task
-func CommitChanges(workDir string, newCmd CommandCreator) func(context.Context) (string, error) {
-	return func(ctx context.Context) (string, error) {
+func CommitChanges(
+	workDir string,
+	newCmd CommandCreator,
+) func(*log.Logger, context.Context) (string, error) {
+	return func(log *log.Logger, ctx context.Context) (string, error) {
 		in := ctx.Value(prevTaskOutputKey).(string)
 		if !strings.HasPrefix(in, "Tests PASS:") {
 			return "", errors.New("nothing to commit")

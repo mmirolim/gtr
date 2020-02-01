@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"strings"
@@ -12,23 +13,23 @@ var _ Task = (*GoTestRunner)(nil)
 
 // Runs go tests
 type GoTestRunner struct {
-	strategy  Strategy
-	cmd       CommandCreator
-	args      string
-	showTests bool
+	strategy Strategy
+	cmd      CommandCreator
+	args     string
+	log      *log.Logger
 }
 
 func NewGoTestRunner(
 	strategy Strategy,
 	cmd CommandCreator,
 	args string,
-	showTests bool,
+	logger *log.Logger,
 ) *GoTestRunner {
 	return &GoTestRunner{
-		strategy:  strategy,
-		cmd:       cmd,
-		args:      args,
-		showTests: showTests,
+		strategy: strategy,
+		cmd:      cmd,
+		args:     args,
+		log:      logger,
 	}
 }
 
@@ -58,13 +59,11 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 		testNames, "./...", "-args", tr.args,
 	)
 
-	if tr.showTests {
-		printStrList("Tests to run", tests, true)
-		if len(subTests) > 0 {
-			printStrList("Subtests to run", subTests, true)
-		}
-		fmt.Println(">>", strings.Join(cmd.GetArgs(), " "))
+	logStrList(tr.log, "Tests to run", tests, true)
+	if len(subTests) > 0 {
+		logStrList(tr.log, "Subtests to run", subTests, true)
 	}
+	tr.log.Println(">>", strings.Join(cmd.GetArgs(), " "))
 
 	cmd.SetStdout(os.Stdout)
 	cmd.SetStderr(os.Stderr)
@@ -89,7 +88,7 @@ func (tr *GoTestRunner) joinTestAndSubtest(tests, subTests []string) string {
 	return out
 }
 
-func printStrList(title string, tests []string, toSort bool) {
+func logStrList(log *log.Logger, title string, tests []string, toSort bool) {
 	var out []string
 	if toSort {
 		out = make([]string, len(tests))
@@ -98,9 +97,11 @@ func printStrList(title string, tests []string, toSort bool) {
 	} else {
 		out = tests
 	}
-	fmt.Printf("\n=============\n%s\n", title) // output for debug
+
+	log.Println("=============") // output for debug
+	log.Println(title)
 	for i := range out {
-		fmt.Printf("-> %+v\n", out[i]) // output for debug
+		log.Printf("-> %+v\n", out[i]) // output for debug
 	}
-	fmt.Println("=============")
+	log.Println("=============")
 }
