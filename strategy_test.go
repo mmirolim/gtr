@@ -144,21 +144,45 @@ func TestAdd(t *testing.T) {
 	}
 }
 
-func TestMinMax(t *testing.T) {
+func TestMinMaxAdd(t *testing.T) {
+	cf := func(t *testing.T) {
+		t.Error("error")
+	}
+	cf(t)
 	t.Run("min", func(t *testing.T) {
 		if min(1, 2) != 1 {
 			t.Error("unexpected result")
 		}
-	})
-	t.Run("max", func(t *testing.T) {
-		if max(1, 2) != 2 {
-			t.Error("unexpected result")
+		cf2 := func(t *testing.T){
+			if add(1, 2) != 3 {
+				t.Error("unexpected result")
+			}
 		}
+		cf2(t)
+	})
+	t.Run("max", helperMax)
+
+	for _, tc := range []string{"test1", "test2"} {
+		tc := tc // capture range variable
+		t.Run(tc, func(t *testing.T) {
+			if add(1, 2) != 3 {
+				t.Error(tc)
+			}
+		})
+	}
+	t.Run("group", func(t *testing.T) {
+		t.Run("group test 1", helperMax)
 	})
 }
 
 func TestSub(t *testing.T) {
 	if sub(add(1, 2), 1) != 2 {
+		t.Error("unexpected result")
+	}
+}
+
+func helperMax(t *testing.T) {
+	if max(1, 2) != 2 {
 		t.Error("unexpected result")
 	}
 }
@@ -370,7 +394,8 @@ func TestPkgBMethodOnValue(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit file_a.go changes")
 			},
-			outTests: []string{"TestAdd", "TestSub"}, outSubTests: nil,
+			outTests:    []string{"TestAdd", "TestMinMaxAdd", "TestSub"},
+			outSubTests: []string{"min"},
 		},
 		{
 			desc: "Update file_b.go file max func",
@@ -381,7 +406,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit file_b.go changes") // Test
 			},
-			outTests: []string{"TestMinMax"}, outSubTests: []string{"max"},
+			outTests: []string{"TestMinMaxAdd"}, outSubTests: []string{"group test 1", "max"},
 		},
 		{
 			desc: "Check named imports",
@@ -407,20 +432,19 @@ func TestPkgBMethodOnValue(t *testing.T) {
 			},
 			outTests: []string{"TestPkgBMethodOnValue"}, outSubTests: nil,
 		},
+		// TODO add test with helper func in different packages
+		// TODO add test with different testing frameworks
 	}
 	gitDiffStrategy := setup()
 	for i, tc := range cases {
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
-
 		testsList, subTestsList, err := gitDiffStrategy.TestsToRun(context.Background())
-
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue
 		}
-
 		sort.Strings(tc.outTests)
 		sort.Strings(testsList)
 		if !reflect.DeepEqual(tc.outTests, testsList) {
@@ -510,5 +534,4 @@ func isUnexpectedErr(t *testing.T, caseID int, desc string, expectedErr, goterr 
 		return true
 	}
 	return false
-
 }

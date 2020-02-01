@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/token"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/callgraph"
@@ -83,7 +80,7 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 	}
 
 	// TODO prog remove from API
-	moduleName, filePathToPkg, allSubtests, _, allPkgs, analyzeErr := analyzeGoCode(ctx, gds.workDir)
+	moduleName, filePathToPkg, _, allPkgs, analyzeErr := analyzeGoCode(ctx, gds.workDir)
 	if analyzeErr != nil {
 		err = ErrBuildFailed
 		return
@@ -139,27 +136,34 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 	subTests := map[string]bool{}
 	for tnode := range allTests {
 		callgraph.PathSearch(tnode, func(n *callgraph.Node) bool {
-			if changedNodes[n] {
-				funName := tnode.Func.Name()
-				// TODO change to test for Run func $ is only for anon funcs
-				if idx := strings.IndexByte(funName, '$'); idx != -1 {
-					subTestID, err := strconv.Atoi(funName[idx+1:])
-					if err != nil {
-						fmt.Printf("subtest id parse error %+v\n", err) // output for debug
-						return true
-					}
-					funName = funName[0:idx]
-					set, ok := allSubtests[tnode.Func.Package().Pkg.Path()+"."+funName]
-					if ok && len(set) >= subTestID {
-						subTests[set[subTestID-1]] = true
-					} else {
-						fmt.Printf("[WARN] expected subtest %d of %s not found \n", subTestID, funName) // output for debug
+			if !changedNodes[n] {
+				return false
+			}
+			funName := tnode.Func.Name()
+			idx := -1
+			for {
+				idx = strings.LastIndexByte(funName, '$')
+				// is anon func
+				for tn, dic := range allTests {
+					if subName, ok := dic[funName]; ok {
+						// add all subtest with this helper
+						subTests[subName] = true
+						if strings.LastIndexByte(tn.Func.Name(), '$') == -1 {
+							testsSet[tn.Func.Name()] = true
+						}
+
 					}
 				}
-				testsSet[funName] = true
-				return true
+				if idx > -1 {
+					funName = funName[0:idx]
+				} else if len(funName) > 4 && funName[0:4] == "Test" {
+					testsSet[funName] = true
+					break
+				} else {
+					break
+				}
 			}
-			return false
+			return true
 		})
 	}
 
@@ -224,7 +228,6 @@ func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[s
 func analyzeGoCode(ctx context.Context, workDir string) (
 	moduleName string,
 	filePathToPkg map[string]string,
-	allSubtests map[string][]string,
 	prog *ssa.Program,
 	allPkgs []*ssa.Package,
 	err error,
@@ -259,47 +262,12 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 		}
 	}
 
-	allSubtests = map[string][]string{}
 	moduleName = pkgs[0].ID
 	for i := 0; i < len(pkgs); i++ {
 		pkg := pkgs[i]
 		if len(moduleName) > len(pkg.ID) {
 			moduleName = pkg.ID
 		}
-		// find all sub tests
-		for _, astf := range pkg.Syntax {
-			for i := range astf.Decls {
-				fun, ok := astf.Decls[i].(*ast.FuncDecl)
-				if !ok {
-					continue
-				}
-				if !strings.HasPrefix(fun.Name.Name, "Test") {
-					continue
-				}
-				ast.Inspect(fun.Body, func(n ast.Node) bool {
-					callExpr, ok := n.(*ast.CallExpr)
-					if !ok {
-						return true
-					}
-
-					calleeName, err := fnNameFromCallExpr(callExpr)
-					if err != nil || calleeName != "t.Run" {
-						return true
-					}
-
-					for i := range callExpr.Args {
-						if lit, ok := callExpr.Args[i].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-							id := pkg.PkgPath + "." + fun.Name.Name
-							allSubtests[id] = append(allSubtests[id],
-								strings.ReplaceAll(lit.Value[1:len(lit.Value)-1], " ", "_"))
-						}
-					}
-
-					return true
-				})
-			}
-		}
-
 	}
 
 	// TODO test without go mod, in GOPATH
@@ -325,22 +293,44 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 	return
 }
 
+// TODO do with analyzer api
 func getAllTestsInModule(moduleName string, graph *callgraph.Graph) (
-	allTests map[*callgraph.Node]bool,
+	allTests map[*callgraph.Node]map[string]string,
 ) {
-	allTests = map[*callgraph.Node]bool{}
-	for k := range graph.Nodes {
+	// Top level test node -> t.Run helper func -> t.Run name
+	allTests = map[*callgraph.Node]map[string]string{}
+	for k, n := range graph.Nodes {
 		if k == nil || k.Package() == nil ||
 			!strings.HasPrefix(k.Package().Pkg.Path(), moduleName) {
 			continue
 		}
 		nodeType := k.Type().String()
-		// filter exported Test funcs
-		if strings.HasPrefix(k.Name(), "Test") &&
-			(strings.Contains(nodeType, "*testing.T") ||
-				strings.Contains(nodeType, "*testing.M")) {
-			allTests[graph.Nodes[k]] = true
+		// TODO what to do with helperTesting(t *testing.T[, args ...]) ?
+		// find testing funcs
+		if strings.Contains(nodeType, "*testing.T") ||
+			strings.Contains(nodeType, "*testing.M") {
+			allTests[n] = nil
+			for _, block := range k.Blocks {
+				for j, instr := range block.Instrs {
+					if !strings.HasPrefix(block.Instrs[j].String(), "(*testing.T).Run") {
+						continue
+					}
+					// (*testing.T).Run(t7, "max":string, helperMax)
+					opers := instr.Operands(nil)
+					if (*opers[2]).Name()[0] == 't' {
+						// skip
+						continue
+					}
+					if allTests[n] == nil {
+						allTests[n] = map[string]string{}
+					}
+					subTestName := (*opers[2]).Name()
+					allTests[n][(*opers[3]).Name()] = subTestName[1 : len(subTestName)-len(":string")-1]
+
+				}
+			}
 		}
+
 	}
 	return
 }
