@@ -12,6 +12,7 @@ var (
 	testBinaryArgs  = flag.String("args", "", "arguments to pass to binary format -k1=v1 -k2=v2")
 	excludePrefixes = flag.String("exclude-file-prefix", "flymake,#flymake", "prefixes to exclude sep by comma")
 	excludeDirs     = flag.String("exclude-dir", "vendor,node_modules", "prefixes to exclude sep by comma")
+	autoCommit      = flag.String("auto-commit", "", "auto commit on tests pass, default false")
 )
 
 // TODO add flag for turning of auto commit
@@ -27,10 +28,16 @@ func main() {
 		*testBinaryArgs,
 		true,
 	)
-	autoCommitTask := NewTask("auto_commit_on_test_pass", CommitChanges(workDir, NewOsCommand))
+	tasks := []Task{testRunner, notifier}
+	if len(*autoCommit) > 0 {
+		autoCommitTask := NewTask("AutoCommit",
+			CommitChanges(workDir, NewOsCommand))
+		tasks = append(tasks, autoCommitTask)
+		tasks = append(tasks, notifier)
+	}
 	watcher, err := NewWatcher(
 		workDir,
-		[]Task{testRunner, notifier, autoCommitTask, notifier},
+		tasks,
 		*delay,
 		splitStr(*excludePrefixes, ","),
 		splitStr(*excludeDirs, ","),
