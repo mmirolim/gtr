@@ -27,7 +27,6 @@ func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
 
 // TODO pass CommandExecutor
 func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
-	// TODO store hashes of new files and return untracked new files to run
 	var gitOut bytes.Buffer
 	var results []Change
 	// get not yet commited go files
@@ -70,7 +69,6 @@ func GitCmdFactory(workDir string) func(args ...string) error {
 }
 
 // TODO maybe use branch as config gtr-no-commit, will suspend from commiting
-// TODO do not show no test to run
 // CommitChanges returns committing task
 func CommitChanges(
 	workDir string,

@@ -26,8 +26,6 @@ type Task interface {
 	Run(ctx context.Context) (msg string, err error)
 }
 
-// TODO test passing args to test run
-// TODO use logger
 type Watcher struct {
 	wt                  *fsnotify.Watcher
 	workDir             string
@@ -203,7 +201,7 @@ func (w *Watcher) add(path string) error {
 		return filepath.SkipDir
 	}
 	// add watcher to dir
-	err := w.wt.Add(path) // TEST
+	err := w.wt.Add(path)
 	if err != nil {
 		w.log.Printf("could not add dir to watcher %s\n", err)
 		return filepath.SkipDir
@@ -213,13 +211,13 @@ func (w *Watcher) add(path string) error {
 }
 
 // recursively adds directories to a watcher
-func (w *Watcher) addDirs() error { // TODO
+func (w *Watcher) addDirs() error {
 	// walk current directory and if there is other directory add watcher to it
 	err := filepath.Walk(w.workDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() { // TODO
+		if !info.IsDir() {
 			return nil
 		}
 		err = w.add(path)

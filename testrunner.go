@@ -64,7 +64,6 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	// in case of console blocking programs
 	// -vet=off to improve speed
 	// TODO if all test in same package, run only it
-	// TODO set cpu value
 	cmd := tr.cmd(ctx, "go", "test", "-v", "-vet", "off", "-failfast",
 		"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0)),
 		"-run", testNames, "./...", "-args", tr.args,

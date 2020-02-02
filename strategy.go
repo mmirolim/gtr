@@ -30,7 +30,6 @@ type GitDiffStrategy struct {
 	log     *log.Logger
 }
 
-// TODO configure source code analyze algorithm
 func NewGitDiffStrategy(workDir string, logger *log.Logger) *GitDiffStrategy {
 	return &GitDiffStrategy{
 		workDir: workDir,
@@ -40,10 +39,7 @@ func NewGitDiffStrategy(workDir string, logger *log.Logger) *GitDiffStrategy {
 }
 
 // TODO test on different modules and Gopath version
-// TODO improve performance, TestsToRun testing takes more than 2s
-// TODO maybe exclude tests on func main changes
-// TODO imporove messages on test pass, build fails, no tests found
-// TODO uneffected tests running on CommitChangeTask change
+// TODO improve performance, TestsToRun testing takes more than 4s
 func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string, subTestsList []string, err error) {
 	changes, err := gds.gitCmd.Diff(ctx)
 	if err != nil {
@@ -86,13 +82,11 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		return
 	}
 
-	// TODO prog remove from API
-	moduleName, filePathToPkg, _, allPkgs, analyzeErr := analyzeGoCode(ctx, gds.workDir)
+	moduleName, filePathToPkg, allPkgs, analyzeErr := analyzeGoCode(ctx, gds.workDir)
 	if analyzeErr != nil {
 		err = ErrBuildFailed
 		return
 	}
-	// TODO make analyze configurable
 	// TODO test with libraries without entry point
 	var testPkgs []*ssa.Package
 	for _, pkg := range allPkgs {
@@ -231,11 +225,9 @@ func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[s
 	return changedBlocks, nil
 }
 
-// TODO do not print errors, just return it
 func analyzeGoCode(ctx context.Context, workDir string) (
 	moduleName string,
 	filePathToPkg map[string]string,
-	prog *ssa.Program,
 	allPkgs []*ssa.Package,
 	err error,
 ) {
@@ -303,6 +295,7 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 			}
 		}
 	}
+	var prog *ssa.Program
 	prog, allPkgs = ssautil.Packages(pkgs, ssa.NaiveForm|ssa.SanityCheckFunctions)
 	prog.Build()
 	return
