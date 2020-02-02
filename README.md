@@ -20,7 +20,7 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 
 # Installation
 	
-	go get -u https://github.com/mmirolim/gtr
+	go get -u github.com/mmirolim/gtr
 
 	
 # Usage
