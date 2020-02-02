@@ -280,3 +280,63 @@ func TestGetFileBlocks(t *testing.T) {
 		}
 	}
 }
+
+func TestParseFlag(t *testing.T) {
+	cases := []struct {
+		desc   string
+		osArgs []string
+		out    config
+		err    error
+	}{
+		{
+			desc:   "no flags are defined",
+			osArgs: []string{"./binary"},
+			out:    newConfig(),
+			err:    nil,
+		},
+		{
+			desc: "All flags are correctly defined",
+			osArgs: []string{"./binary", "-delay", "10", "-exclude-file-prefix", "h,v,#",
+				"-exclude-dirs", "vendor,node_modules", "-auto-commit", "t", "-args",
+				"-tf1", "10", "-tf2", "20,30"},
+			out: config{
+				delay:             10,
+				excludeFilePrefix: []string{"h", "v", "#"},
+				excludeDirs:       []string{"vendor", "node_modules"},
+				autoCommit:        "t",
+				argsToTestBinary:  "-tf1 10 -tf2 20,30",
+			},
+			err: nil,
+		},
+		{
+			desc: "Delay flag invalid",
+			osArgs: []string{"./binary", "-delay", "10.1", "-args",
+				"-tf1", "10", "-tf2", "20,30"},
+			out: config{},
+			err: errors.New("-delay invalid value 10.1"),
+		},
+		{
+			desc:   "Flag value missing",
+			osArgs: []string{"./binary", "-auto-commit", "t", "-exclude-dirs"},
+			out:    config{},
+			err:    errors.New("-exclude-dirs value missing"),
+		},
+		{
+			desc:   "on help return usage",
+			osArgs: []string{"./binary", "help"},
+			out:    config{},
+			err:    errors.New(flagUsage()),
+		},
+	}
+	for i, tc := range cases {
+		cfg, err := parseFlags(tc.osArgs)
+		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
+			continue
+		}
+
+		diffs := pretty.Diff(tc.out, cfg)
+		if len(diffs) > 0 {
+			t.Errorf("case [%d] %s\nunexpected result %# v", i, tc.desc, pretty.Formatter(diffs))
+		}
+	}
+}

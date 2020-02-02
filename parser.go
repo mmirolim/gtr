@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -279,4 +280,42 @@ func mapStrToSlice(set map[string]bool) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+func parseFlags(args []string) (config, error) {
+	var err error
+	args = args[1:]
+	if len(args) > 0 && (args[0] == "help" || args[0] == "-help") {
+		return config{}, errors.New(flagUsage())
+	}
+	cfg := newConfig()
+LOOP:
+	for i := 0; i < len(args); i++ {
+		if i+1 >= len(args) {
+			return config{}, fmt.Errorf("%s value missing", args[i])
+		}
+		nextArg := args[i+1]
+		switch args[i] {
+		case "-delay":
+			cfg.delay, err = strconv.Atoi(nextArg)
+			if err != nil {
+				return config{}, fmt.Errorf("-delay invalid value %v", nextArg)
+			}
+		case "-exclude-file-prefix":
+			cfg.excludeFilePrefix = splitStr(nextArg, ",")
+		case "-exclude-dirs":
+			cfg.excludeDirs = splitStr(nextArg, ",")
+		case "-auto-commit":
+			cfg.autoCommit = nextArg
+		case "-args":
+			cfg.argsToTestBinary = strings.Join(args[i+1:], " ")
+			break LOOP
+		default:
+			return cfg, fmt.Errorf("invalid option -- %s", args[i])
+		}
+
+		i++
+	}
+
+	return cfg, nil
 }

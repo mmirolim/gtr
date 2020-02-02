@@ -1,25 +1,18 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"runtime"
 )
 
-var (
-	delay           = flag.Int("delay", 1000, "delay in Milliseconds")
-	testBinaryArgs  = flag.String("args", "", "arguments to pass to binary format -k1=v1 -k2=v2")
-	excludePrefixes = flag.String("exclude-file-prefix", "flymake,#flymake", "prefixes to exclude sep by comma")
-	excludeDirs     = flag.String("exclude-dir", "vendor,node_modules", "prefixes to exclude sep by comma")
-	autoCommit      = flag.String("auto-commit", "", "auto commit on tests pass, default false")
-)
-
-// TODO add flag for turning of auto commit
-// TODO output to stdout with gtr prefix
 func main() {
-	flag.Parse()
+	cfg, err := parseFlags(os.Args)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 	workDir := "."
 	logger := log.New(os.Stdout, "gtr: ", 0)
 	diffStrategy := NewGitDiffStrategy(workDir, logger)
@@ -27,11 +20,11 @@ func main() {
 	testRunner := NewGoTestRunner(
 		diffStrategy,
 		NewOsCommand,
-		*testBinaryArgs,
+		cfg.argsToTestBinary,
 		logger,
 	)
 	tasks := []Task{testRunner, notifier}
-	if len(*autoCommit) > 0 {
+	if len(cfg.autoCommit) > 0 {
 		autoCommitTask := NewTask("AutoCommit",
 			CommitChanges(workDir, NewOsCommand),
 			logger)
@@ -41,9 +34,9 @@ func main() {
 	watcher, err := NewWatcher(
 		workDir,
 		tasks,
-		*delay,
-		splitStr(*excludePrefixes, ","),
-		splitStr(*excludeDirs, ","),
+		cfg.delay,
+		cfg.excludeFilePrefix,
+		cfg.excludeDirs,
 		logger,
 	)
 	if err != nil {
@@ -56,5 +49,39 @@ func main() {
 	if err != nil {
 		fmt.Printf("Watcher.Run error %+v\n", err) // output for debug
 		os.Exit(1)
+	}
+}
+
+type config struct {
+	delay             int
+	excludeFilePrefix []string
+	excludeDirs       []string
+	autoCommit        string
+	argsToTestBinary  string
+}
+
+func flagUsage() string {
+	return `
+Usage of gtr:
+  -args string
+    	args to the test binary
+  -auto-commit string
+    	auto commit on tests pass (default false)
+  -delay int
+    	delay in Milliseconds (default 1000)
+  -exclude-dirs string
+    	prefixes to exclude sep by comma (default "vendor,node_modules")
+  -exclude-file-prefix string
+    	prefixes to exclude sep by comma (default "#")
+`
+}
+
+func newConfig() config {
+	return config{
+		delay:             1000,
+		excludeFilePrefix: []string{"#"},
+		excludeDirs:       []string{"vendor", "node_modules"},
+		autoCommit:        "",
+		argsToTestBinary:  "",
 	}
 }
