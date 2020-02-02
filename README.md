@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/mmirolim/gtr.svg)](https://travis-ci.org/mmirolim/gtr)
 [![GoDoc](https://godoc.org/github.com/mmirolim/gtr?status.svg)](http://godoc.org/github.com/mmirolim/gtr)
-[![Coverage](https://gocover.io/_badge/github.com/mmirolim/gtr)](https://gocover.io/github.com/mmirolim/gtr)
+[![codecov](https://codecov.io/gh/mmirolim/gtr/branch/master/graph/badge.svg)](https://codecov.io/gh/mmirolim/gtr)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mmirolim/gtr)](https://goreportcard.com/badge/github.com/mmirolim/gtr)
 
 # GTR - Go Test Runner
