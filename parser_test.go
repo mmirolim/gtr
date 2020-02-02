@@ -5,6 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -337,6 +341,85 @@ func TestParseFlag(t *testing.T) {
 		diffs := pretty.Diff(tc.out, cfg)
 		if len(diffs) > 0 {
 			t.Errorf("case [%d] %s\nunexpected result %# v", i, tc.desc, pretty.Formatter(diffs))
+		}
+	}
+
+}
+
+func TestGetModuleName(t *testing.T) {
+	gomod := []byte(`module rock.com/solid
+
+go 1.13
+
+require (
+	golang.org/x/tools v0.0.0-20190729092621-ff9f1409240a
+)`)
+	// setup
+	testDir := filepath.Join(os.TempDir(), "test-get-module-name")
+	workDir := filepath.Join(testDir, "src", "rockcom", "solid")
+	err := os.MkdirAll(workDir, 0700)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// change dir
+	err = os.Chdir(workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// teardown
+	defer func() {
+		// go back
+		os.Chdir(dir)
+		if !t.Failed() {
+			// clean tmp dir on test success
+			_ = os.RemoveAll(testDir)
+		}
+	}()
+
+	cases := []struct {
+		desc            string
+		gofile          []byte
+		module          string
+		err             error
+		setup, teardown func() error
+	}{
+		{
+			desc:   "Not a go module",
+			module: "rockcom/solid",
+			setup: func() error {
+				return os.Setenv("GOPATH", testDir)
+			},
+		},
+		{
+			desc:   "Go module",
+			gofile: gomod,
+			module: "rock.com/solid",
+			setup: func() error {
+				return ioutil.WriteFile(filepath.Join(workDir, "go.mod"), gomod, 0600)
+			},
+			teardown: func() error {
+				return os.Remove(filepath.Join(workDir, "go.mod"))
+			},
+		},
+	}
+	for i, tc := range cases {
+		// setup
+		execTestHelper(t, i, tc.desc, tc.setup)
+
+		module, err := getModuleName(workDir)
+
+		// teardown
+		execTestHelper(t, i, tc.desc, tc.teardown)
+		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
+			continue
+		}
+
+		if !reflect.DeepEqual(tc.module, module) {
+			t.Errorf("case [%d] %s\nexpected %s, got %s", i, tc.desc, tc.module, module)
 		}
 	}
 }

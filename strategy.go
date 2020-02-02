@@ -55,6 +55,7 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		}
 
 	}
+
 	changes = changes[:n]
 	if len(changes) == 0 {
 		// no changes to test
@@ -87,6 +88,7 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		err = ErrBuildFailed
 		return
 	}
+
 	// TODO test with libraries without entry point
 	var testPkgs []*ssa.Package
 	for _, pkg := range allPkgs {
@@ -269,12 +271,9 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 		}
 	}
 
-	moduleName = pkgs[0].ID
-	for i := 0; i < len(pkgs); i++ {
-		pkg := pkgs[i]
-		if len(moduleName) > len(pkg.ID) {
-			moduleName = pkg.ID
-		}
+	moduleName, err = getModuleName(workDir)
+	if err != nil {
+		return
 	}
 
 	// TODO test without go mod, in GOPATH

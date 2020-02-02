@@ -8,6 +8,8 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -318,4 +320,30 @@ LOOP:
 	}
 
 	return cfg, nil
+}
+
+func getModuleName(workDir string) (string, error) {
+	data, err := ioutil.ReadFile(filepath.Join(workDir, "go.mod"))
+	if err != nil {
+		// get from GOPATH
+		gopath := os.Getenv("GOPATH")
+		if gopath == "" {
+			return "", errors.New("GOPATH and go.mod not found")
+		}
+		dir, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Rel(filepath.Join(gopath, "src"), dir)
+	}
+
+	var line []byte
+	for i := 0; i < len(data); i++ {
+		if data[i] == '\n' {
+			break
+		}
+		line = data[0 : i+1]
+	}
+
+	return strings.Split(string(line), " ")[1], nil
 }
