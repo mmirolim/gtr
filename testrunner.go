@@ -80,9 +80,13 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	cmd.SetEnv(os.Environ())
 
 	err = cmd.Run()
-	msg := "Tests PASS: " + testNames
-	if !cmd.Success() {
+	msg := ""
+	if cmd.Success() {
+		msg = "Tests PASS: " + testNames
+		tr.log.Println("\033[32mTests PASS\033[39m")
+	} else {
 		msg = "Tests FAIL: " + testNames
+		tr.log.Println("\033[31mTests FAIL\033[39m")
 	}
 	return msg, nil
 }

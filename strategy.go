@@ -71,8 +71,8 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		if !ok {
 			info, err = getFileInfo(filepath.Join(gds.workDir, change.fpath), nil)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "\n>>>>>>>>>> Build Failed >>>>>>>>>")
-				fmt.Fprintf(os.Stderr, "ERROR: %s", err)
+				fmt.Fprintln(os.Stderr, "\n>>>>>>>>>>\033[31m Build Failed \033[39m>>>>>>>>>")
+				fmt.Fprintf(os.Stderr, "%s", err)
 				fmt.Fprintln(os.Stderr, "\n>>>>>>>>>>>>>>>>>")
 				err = fmt.Errorf("getFileInfo error %s", err)
 				return
@@ -262,7 +262,7 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 
 	for i := range pkgs {
 		if len(pkgs[i].Errors) > 0 {
-			fmt.Fprintln(os.Stderr, "\n>>>>>>>>>> Build Failed >>>>>>>>>")
+			fmt.Fprintln(os.Stderr, "\n>>>>>>>>>> \033[31m Build Failed \033[39m>>>>>>>>>")
 			packages.PrintErrors(pkgs)
 			fmt.Fprintln(os.Stderr, "\n>>>>>>>>>>>>>>>>>")
 			err = errors.New("packages.Load error")

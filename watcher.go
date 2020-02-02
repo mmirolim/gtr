@@ -181,7 +181,7 @@ LOOP:
 					w.log.Printf("Run task.ID %+v\n", task.ID()) // output for debug
 					output, err = task.Run(ctx)
 					if err != nil {
-						w.log.Printf("stop pipeline Task.ID: %s returned err %+v\n", task.ID(), err) // output for debug
+						w.log.Printf("stop pipeline Task.ID: %s returned\n", task.ID()) // output for debug
 						break
 					}
 				}
