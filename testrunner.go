@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 var _ Task = (*GoTestRunner)(nil)
 
-// Runs go tests
+// GoTestRunner runs go tests
 type GoTestRunner struct {
 	strategy Strategy
 	cmd      CommandCreator
@@ -19,6 +21,11 @@ type GoTestRunner struct {
 	log      *log.Logger
 }
 
+// NewGoTestRunner creates test runner
+// strategy to use
+// cmd creator
+// args to runner
+// logger for runner
 func NewGoTestRunner(
 	strategy Strategy,
 	cmd CommandCreator,
@@ -33,10 +40,12 @@ func NewGoTestRunner(
 	}
 }
 
+// Task ID
 func (tr *GoTestRunner) ID() string {
 	return "GoTestRunner"
 }
 
+// Task Run method
 func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	tests, subTests, err := tr.strategy.TestsToRun(ctx)
 	if err != nil {
@@ -55,10 +64,11 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	// in case of console blocking programs
 	// -vet=off to improve speed
 	// TODO if all test in same package, run only it
-	cmd := tr.cmd(ctx, "go", "test", "-v", "-vet", "off", "-run",
-		testNames, "./...", "-args", tr.args,
+	// TODO set cpu value
+	cmd := tr.cmd(ctx, "go", "test", "-v", "-vet", "off", "-failfast",
+		"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0)),
+		"-run", testNames, "./...", "-args", tr.args,
 	)
-
 	logStrList(tr.log, "Tests to run", tests, true)
 	if len(subTests) > 0 {
 		logStrList(tr.log, "Subtests to run", subTests, true)
