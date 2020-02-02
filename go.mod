@@ -1,4 +1,4 @@
-module github.com/mmirolim/gotestrunner
+module github.com/mmirolim/gtr
 
 go 1.13
 
