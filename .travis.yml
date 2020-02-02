@@ -1,0 +1,11 @@
+language: go
+
+go:
+  - 1.13
+
+before_install:
+  - go mod download
+
+script:
+  # run tests on a standard platform
+  - go test -v
