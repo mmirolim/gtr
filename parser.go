@@ -120,7 +120,7 @@ func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 			diff.UnreadRune()
 		}
 		consumeLine()
-		if line[0] == 'd' && line[1] == 'e' { //deleted
+		if line[0] == 'd' && line[1] == 'e' { // deleted
 			// skip deleted files
 			f1, f2 = "", ""
 			continue
@@ -218,56 +218,68 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 	fileInfo.pkgName = f.Name.Name
 	_, fname = filepath.Split(fname)
 	fileInfo.fname = fname
-	for _, decl := range f.Decls {
+	parseSpecs := func(d *ast.GenDecl) []FileBlock {
+		var blocks []FileBlock
 		var block FileBlock
+		for _, v := range d.Specs {
+			switch spec := v.(type) {
+			case *ast.ImportSpec:
+				// TODO handle
+			case *ast.TypeSpec:
+				block.name = spec.Name.Name
+				block.typ = BlockType
+				// handle struct type
+				typ, ok := spec.Type.(*ast.StructType)
+				if ok {
+					block.start = fset.Position(typ.Fields.Opening).Line
+					block.end = fset.Position(typ.Fields.Closing).Line
+					blocks = append(blocks, block)
+				}
+			case *ast.ValueSpec:
+				// TODO handle variable decl
+			default:
+				fmt.Printf("[WARN] unhandled GenDecl Spec case %# v\n", pretty.Formatter(spec)) // output for debug
+
+			}
+		}
+		return blocks
+	}
+	parseFuncDecl := func(fn *ast.FuncDecl) (FileBlock, error) {
+		var block FileBlock
+		block.typ = BlockFunc
+		block.name = fn.Name.Name
+		block.start = fset.Position(fn.Body.Lbrace).Line
+		block.end = fset.Position(fn.Body.Rbrace).Line
+		if fn.Recv != nil {
+			// method
+			block.typ = BlockMethod
+			fld := fn.Recv.List[0]
+			switch v := fld.Type.(type) {
+			case *ast.Ident:
+				block.name = v.Name + "." + block.name
+			case *ast.StarExpr:
+				ident, ok := v.X.(*ast.Ident)
+				if ok {
+					block.name = ident.Name + "." + block.name
+				} else {
+					return block, fmt.Errorf("unexpected ast type %T", v.X)
+				}
+			default:
+				fmt.Printf("[WARN] unhandled method reciver case %T\n", v) // output for debug
+
+			}
+		}
+		return block, nil
+	}
+
+	for _, decl := range f.Decls {
 		switch d := decl.(type) {
 		case *ast.GenDecl:
-			for _, v := range d.Specs {
-				switch spec := v.(type) {
-				case *ast.ImportSpec:
-					// TODO handle
-				case *ast.TypeSpec:
-					block.name = spec.Name.Name
-					block.typ = BlockType
-					// handle struct type
-					typ, ok := spec.Type.(*ast.StructType)
-					if ok {
-						block.start = fset.Position(typ.Fields.Opening).Line
-						block.end = fset.Position(typ.Fields.Closing).Line
-						blocks = append(blocks, block)
-					}
-				case *ast.ValueSpec:
-					// TODO handle variable decl
-				default:
-					fmt.Printf("[WARN] unhandled GenDecl Spec case %# v\n", pretty.Formatter(spec)) // output for debug
-
-				}
-			}
-			continue
+			blocks = append(blocks, parseSpecs(d)...)
 		case *ast.FuncDecl:
-			fn := d
-			block.typ = BlockFunc
-			block.name = fn.Name.Name
-			block.start = fset.Position(fn.Body.Lbrace).Line
-			block.end = fset.Position(fn.Body.Rbrace).Line
-			if fn.Recv != nil {
-				// method
-				block.typ = BlockMethod
-				fld := fn.Recv.List[0]
-				switch v := fld.Type.(type) {
-				case *ast.Ident:
-					block.name = v.Name + "." + block.name
-				case *ast.StarExpr:
-					ident, ok := v.X.(*ast.Ident)
-					if ok {
-						block.name = ident.Name + "." + block.name
-					} else {
-						return fileInfo, fmt.Errorf("unexpected ast type %T", v.X)
-					}
-				default:
-					fmt.Printf("[WARN] unhandled method reciver case %T\n", v) // output for debug
-
-				}
+			block, err := parseFuncDecl(d)
+			if err != nil {
+				return fileInfo, err
 			}
 			blocks = append(blocks, block)
 		default:
@@ -275,6 +287,7 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 		}
 
 	}
+
 	fileInfo.endLine = fset.Position(f.End()).Line
 	fileInfo.blocks = blocks
 	return fileInfo, nil
