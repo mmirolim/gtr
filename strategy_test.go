@@ -28,10 +28,10 @@ func TestChangesToFileBlocks(t *testing.T) {
 	}
 
 	fileInfos := map[string]FileInfo{
-		"f1": FileInfo{
+		"f1": {
 			fname: "f1", pkgName: "main", endLine: 15, blocks: f1Blocks,
 		},
-		"f2": FileInfo{
+		"f2": {
 			fname: "f2", pkgName: "main", endLine: 32, blocks: f2Blocks,
 		},
 	}
