@@ -29,7 +29,7 @@ func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
 func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
 	var gitOut bytes.Buffer
 	var results []Change
-	// get not yet commited go files
+	// get not yet committed go files
 	gitCmd := exec.CommandContext(ctx, "git", "-C", workdir, "status", "--short")
 	gitCmd.Stdout = &gitOut
 	err := gitCmd.Run()
@@ -68,7 +68,7 @@ func GitCmdFactory(workDir string) func(args ...string) error {
 	}
 }
 
-// TODO maybe use branch as config gtr-no-commit, will suspend from commiting
+// TODO maybe use branch as config gtr-no-commit, will suspend from committing
 // CommitChanges returns committing task
 func CommitChanges(
 	workDir string,
@@ -101,9 +101,8 @@ func CommitChanges(
 		}
 		fileInfos := map[string]FileInfo{}
 		for _, change := range changes {
-			info, ok := fileInfos[change.fpath]
-			if !ok {
-				info, err = getFileInfo(filepath.Join(workDir, change.fpath), nil)
+			if _, ok := fileInfos[change.fpath]; !ok {
+				info, err := getFileInfo(filepath.Join(workDir, change.fpath), nil)
 				if err != nil {
 					return fmt.Sprintf("Commit add error %v\n", err), nil
 				}

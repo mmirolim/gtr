@@ -78,7 +78,7 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	cmd.SetStderr(os.Stderr)
 	cmd.SetEnv(os.Environ())
 
-	err = cmd.Run()
+	cmd.Run()
 	msg := ""
 	if cmd.Success() {
 		msg = "Tests PASS: " + testNames

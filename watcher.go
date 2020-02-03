@@ -227,7 +227,6 @@ func (w *Watcher) addDirs() error {
 		w.dirs[path] = true
 		return nil
 	})
-	// TOOD check
 	return err
 }
 

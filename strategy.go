@@ -63,19 +63,20 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 	}
 
 	fileInfos := map[string]FileInfo{}
+	var info FileInfo
 	for _, change := range changes {
-		info, ok := fileInfos[change.fpath]
-		if !ok {
-			info, err = getFileInfo(filepath.Join(gds.workDir, change.fpath), nil)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "\n=======\033[31m Build Failed \033[39m=======")
-				fmt.Fprintf(os.Stderr, "%s", err)
-				fmt.Fprintln(os.Stderr, "\n============================")
-				err = fmt.Errorf("getFileInfo error %s", err)
-				return
-			}
-			fileInfos[change.fpath] = info
+		if _, ok := fileInfos[change.fpath]; ok {
+			continue
 		}
+		info, err = getFileInfo(filepath.Join(gds.workDir, change.fpath), nil)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "\n=======\033[31m Build Failed \033[39m=======")
+			fmt.Fprintf(os.Stderr, "%s", err)
+			fmt.Fprintln(os.Stderr, "\n============================")
+			err = fmt.Errorf("getFileInfo error %s", err)
+			return
+		}
+		fileInfos[change.fpath] = info
 	}
 	changedBlocks, cerr := changesToFileBlocks(changes, fileInfos)
 	if cerr != nil {
@@ -143,9 +144,8 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 				return false
 			}
 			funName := tnode.Func.Name()
-			idx := -1
 			for {
-				idx = strings.LastIndexByte(funName, '$')
+				idx := strings.LastIndexByte(funName, '$')
 				// is anon func
 				for tn, dic := range allTests {
 					if subName, ok := dic[funName]; ok {
