@@ -353,7 +353,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 
 	// setup
 	testDir := filepath.Join(os.TempDir(), "test_diff_strategy_tests_to_run")
-	gitCmdRun := GitCmdFactory(testDir)
+	gitCmdRun := NewGitCmd(testDir)
 
 	files := map[string][]byte{
 		"go.mod":    gomod,
@@ -487,7 +487,7 @@ func setupTestGitDir(t *testing.T, testDir string, files map[string][]byte, file
 			t.Fatalf("setup write error %v", err)
 		}
 	}
-	gitCmd := GitCmdFactory(testDir)
+	gitCmd := NewGitCmd(testDir)
 	// init git
 	err = gitCmd("init")
 	if err != nil {

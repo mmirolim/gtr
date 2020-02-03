@@ -10,11 +10,13 @@ import (
 
 var _ Task = (*DesktopNotificator)(nil)
 
+// DesktopNotificator implements Task
 type DesktopNotificator struct {
 	transient  bool
 	expireTime string
 }
 
+// NewDesktopNotificator constructs task
 func NewDesktopNotificator(transient bool, expireInMillisecond int) *DesktopNotificator {
 	notifier := &DesktopNotificator{}
 	notifier.transient = transient
@@ -22,15 +24,18 @@ func NewDesktopNotificator(transient bool, expireInMillisecond int) *DesktopNoti
 	return notifier
 }
 
+// ID of the task
 func (n *DesktopNotificator) ID() string {
 	return "DesktopNotificator"
 }
 
+// Run implements Task interface
 func (n *DesktopNotificator) Run(ctx context.Context) (string, error) {
 	in := ctx.Value(prevTaskOutputKey).(string)
 	return in, n.Send(ctx, in)
 }
 
+// Send desktop notification
 func (n *DesktopNotificator) Send(ctx context.Context, msg string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {

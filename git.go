@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"path/filepath"
+	"regexp"
 	"sort"
 
 	"context"
@@ -13,24 +14,26 @@ import (
 	"strings"
 )
 
+// regex to get untracked go file names from git status --short
+var reFnameUntrackedFiles = regexp.MustCompile(`\?\? (?P<fname>[a-zA-Z0-9_\-/]+\.go)`)
+
+// GitCMD git wrapper
 type GitCMD struct {
 	workDir string
 }
 
+// NewGitCMD returns git wrapper
 func NewGitCMD(workDir string) *GitCMD {
 	return &GitCMD{workDir}
 }
 
-func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
-	return GetDiff(ctx, g.workDir)
-}
-
+// Diff returns file changes
 // TODO pass CommandExecutor
-func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
+func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
 	var gitOut bytes.Buffer
 	var results []Change
 	// get not yet committed go files
-	gitCmd := exec.CommandContext(ctx, "git", "-C", workdir, "status", "--short")
+	gitCmd := exec.CommandContext(ctx, "git", "-C", g.workDir, "status", "--short")
 	gitCmd.Stdout = &gitOut
 	err := gitCmd.Run()
 	if err != nil {
@@ -45,7 +48,7 @@ func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
 	// get changes in go files
 	// -U0 zero lines around changes
 	// Disallow external diff drivers.
-	gitCmd = exec.CommandContext(ctx, "git", "-C", workdir, "diff", "-U0", "--no-ext-diff")
+	gitCmd = exec.CommandContext(ctx, "git", "-C", g.workDir, "diff", "-U0", "--no-ext-diff")
 	gitCmd.Stdout = &gitOut
 	err = gitCmd.Run()
 	if err != nil {
@@ -59,28 +62,20 @@ func GetDiff(ctx context.Context, workdir string) ([]Change, error) {
 	return results, nil
 }
 
-// TODO add context
-func GitCmdFactory(workDir string) func(args ...string) error {
-	return func(args ...string) error {
-		gitCmd := exec.Command("git", "-C", workDir)
-		gitCmd.Args = append(gitCmd.Args, args...)
-		return gitCmd.Run()
-	}
-}
-
+// CommitChanges returns task to git commit file changes
 // TODO maybe use branch as config gtr-no-commit, will suspend from committing
-// CommitChanges returns committing task
 func CommitChanges(
 	workDir string,
 	newCmd CommandCreator,
 ) func(*log.Logger, context.Context) (string, error) {
+	gitcmd := NewGitCMD(workDir)
 	return func(log *log.Logger, ctx context.Context) (string, error) {
 		in := ctx.Value(prevTaskOutputKey).(string)
 		if !strings.HasPrefix(in, "Tests PASS:") {
 			return "", errors.New("nothing to commit")
 		}
 		// get types changed changed, used as commit message
-		changes, err := GetDiff(ctx, workDir)
+		changes, err := gitcmd.Diff(ctx)
 		if err != nil {
 			return fmt.Sprintf("%s %s", "Commit error %v", err), nil
 		}

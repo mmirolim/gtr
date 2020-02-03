@@ -12,6 +12,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+// TaskCtxKey type to use for keys in task context
 type TaskCtxKey string
 
 const (
@@ -19,13 +20,14 @@ const (
 	prevTaskOutputKey  TaskCtxKey = "prev_task_output_key"
 )
 
-var _ Task = (*taskAdapter)(nil)
-
+// Task interface for Watcher to execute
 type Task interface {
 	ID() string
 	Run(ctx context.Context) (msg string, err error)
 }
 
+// Watcher watches recursively directories and
+// executes provided Tasks
 type Watcher struct {
 	wt                  *fsnotify.Watcher
 	workDir             string
@@ -38,6 +40,7 @@ type Watcher struct {
 	log                 *log.Logger
 }
 
+// NewWatcher returns constructed Watcher
 func NewWatcher(
 	workDir string,
 	tasks []Task,
@@ -60,7 +63,7 @@ func NewWatcher(
 	}, err
 }
 
-// Blocks
+// Run watcher, blocks
 func (w *Watcher) Run() error {
 	w.log.Println("watcher running...")
 	// watch directories recursively
@@ -236,6 +239,7 @@ func (w *Watcher) Stop() error {
 	return w.wt.Close()
 }
 
+// NewTask adaptor for func to run as the Task
 func NewTask(id string,
 	fn func(*log.Logger, context.Context) (string, error),
 	logger *log.Logger,
@@ -243,6 +247,10 @@ func NewTask(id string,
 	return taskAdapter{id, fn, logger}
 }
 
+var _ Task = (*taskAdapter)(nil)
+
+// taskAdapter struct implements Task interface
+// works as container for func
 type taskAdapter struct {
 	id  string
 	fn  func(*log.Logger, context.Context) (string, error)

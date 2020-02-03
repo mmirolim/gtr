@@ -16,20 +16,20 @@ import (
 	"golang.org/x/tools/go/ssa/ssautil"
 )
 
+// ErrBuildFailed is the error returned when source build fails
 var ErrBuildFailed = errors.New("build failed")
-
-type Strategy interface {
-	TestsToRun(context.Context) (tests []string, subTests []string, err error)
-}
 
 var _ Strategy = (*GitDiffStrategy)(nil)
 
+// GitDiffStrategy finds test to run from git diffs
+// and pointer analysis
 type GitDiffStrategy struct {
 	workDir string
 	gitCmd  *GitCMD
 	log     *log.Logger
 }
 
+// NewGitDiffStrategy returns strategy
 func NewGitDiffStrategy(workDir string, logger *log.Logger) *GitDiffStrategy {
 	return &GitDiffStrategy{
 		workDir: workDir,
@@ -38,6 +38,8 @@ func NewGitDiffStrategy(workDir string, logger *log.Logger) *GitDiffStrategy {
 	}
 }
 
+// TestsToRun returns names of tests and subtests
+// affected by files
 // TODO test on different modules and Gopath version
 // TODO improve performance, TestsToRun testing takes more than 4s
 func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string, subTestsList []string, err error) {

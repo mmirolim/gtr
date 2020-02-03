@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -187,7 +188,7 @@ func TestGetDiff(t *testing.T) {
 	files := map[string][]byte{
 		"main.go": maingo,
 	}
-	gitCmdRun := GitCmdFactory(testDir)
+	gitCmdRun := NewGitCmd(testDir)
 	setup := func() {
 		setupTestGitDir(t,
 			testDir, files,
@@ -323,13 +324,13 @@ func TestGetDiff(t *testing.T) {
 			output: []Change{{"geo.go", "geo.go", 8, 0}},
 		},
 	}
-
+	gitcmd := &GitCMD{testDir}
 	for i, tc := range cases {
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
 
 		// should get line numbers by file and namespace
-		output, err := GetDiff(context.Background(), testDir)
+		output, err := gitcmd.Diff(context.Background())
 
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)
@@ -352,7 +353,7 @@ func TestCommitChangesTask(t *testing.T) {
 	files := map[string][]byte{
 		"main.go": maingo,
 	}
-	gitCmdRun := GitCmdFactory(testDir)
+	gitCmdRun := NewGitCmd(testDir)
 	setup := func() {
 		setupTestGitDir(t,
 			testDir, files,
@@ -423,5 +424,13 @@ func TestCommitChangesTask(t *testing.T) {
 		if tc.output != output {
 			t.Errorf("case [%d] %s\nexpected %# v\ngot %# v", i, tc.desc, tc.output, output)
 		}
+	}
+}
+
+func NewGitCmd(workDir string) func(args ...string) error {
+	return func(args ...string) error {
+		gitCmd := exec.Command("git", "-C", workDir)
+		gitCmd.Args = append(gitCmd.Args, args...)
+		return gitCmd.Run()
 	}
 }

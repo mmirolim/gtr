@@ -13,6 +13,11 @@ import (
 
 var _ Task = (*GoTestRunner)(nil)
 
+// Strategy interface defines provider of tests for the testrunner
+type Strategy interface {
+	TestsToRun(context.Context) (tests []string, subTests []string, err error)
+}
+
 // GoTestRunner runs go tests
 type GoTestRunner struct {
 	strategy Strategy
@@ -40,12 +45,13 @@ func NewGoTestRunner(
 	}
 }
 
-// Task ID
+// ID returns Task ID
 func (tr *GoTestRunner) ID() string {
 	return "GoTestRunner"
 }
 
-// Task Run method
+// Run method implements Task interface
+// runs go tests
 func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	tests, subTests, err := tr.strategy.TestsToRun(ctx)
 	if err != nil {
@@ -90,6 +96,7 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	return msg, nil
 }
 
+// joinTestAndSubtest joins and format tests according to go test -run arg format
 func (tr *GoTestRunner) joinTestAndSubtest(tests, subTests []string) string {
 	out := strings.Join(tests, "$|")
 	if len(out) > 0 {

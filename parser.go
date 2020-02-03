@@ -11,15 +11,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/kr/pretty"
 )
 
-var reFnameUntrackedFiles = regexp.MustCompile(`\?\? (?P<fname>[a-zA-Z0-9_\-/]+\.go)`)
-
+// Change of file lines
 type Change struct {
 	fpathOld string // a/
 	fpath    string // b/ current
@@ -27,6 +25,8 @@ type Change struct {
 	count    int
 }
 
+// changesFromGitDiff parses git diff output and returns
+// slice of Changes
 func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	var changes []Change
 	var serr error
@@ -140,6 +140,8 @@ func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	return changes, serr
 }
 
+// fnNameFromCallExpr returns name of func/method call
+// from ast.CallExpr
 func fnNameFromCallExpr(fn *ast.CallExpr) (string, error) {
 	var fname string
 	var err error
@@ -171,22 +173,32 @@ func fnNameFromCallExpr(fn *ast.CallExpr) (string, error) {
 	return fname, err
 }
 
+// FileInfo file metadata
+// with file name, package it depends
+// number of lines and FileBlocks
 type FileInfo struct {
 	fname, pkgName string
 	endLine        int
 	blocks         []FileBlock
 }
+
+// FileBlock defines blocks of entities
+// in a file, func/method [start, end] line
 type FileBlock struct {
 	typ        BlockKind
 	name       string
 	start, end int // lines [start, end] from 1
 }
 
+// BlockKind custom type for blocks types
 type BlockKind uint32
 
 const (
+	// BlockType Type definition
 	BlockType BlockKind = 1 << iota
+	// BlockFunc Func def
 	BlockFunc
+	// BlockMethod Method def
 	BlockMethod
 )
 
@@ -268,6 +280,7 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 	return fileInfo, nil
 }
 
+// splitStr splits string by sep and trims each entry
 func splitStr(str, sep string) []string {
 	out := strings.Split(str, sep)
 	for i := range out {
@@ -276,6 +289,7 @@ func splitStr(str, sep string) []string {
 	return out
 }
 
+// mapStrToSlice returns slice of keys from map
 func mapStrToSlice(set map[string]bool) []string {
 	var out []string
 	for k := range set {
@@ -284,6 +298,7 @@ func mapStrToSlice(set map[string]bool) []string {
 	return out
 }
 
+// parseFlags parses provided args and returns config
 func parseFlags(args []string) (config, error) {
 	var err error
 	args = args[1:]
@@ -322,6 +337,8 @@ LOOP:
 	return cfg, nil
 }
 
+// getModuleName returns module name
+// in gived workDir
 func getModuleName(workDir string) (string, error) {
 	data, err := ioutil.ReadFile(filepath.Join(workDir, "go.mod"))
 	if err != nil {
