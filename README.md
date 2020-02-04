@@ -38,6 +38,8 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
  
 	gtr help
 	Usage of gtr:
+	-C string
+		  directory to watch (default ".")
 	-args string
 		  args to the test binary
 	-auto-commit string
