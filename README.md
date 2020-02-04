@@ -7,6 +7,8 @@
 
 Go auto testing tool with cruise control. GTR uses std lib pointer analysis to find affected tests by file changes (git diff) and runs only them then notifies using desktop notifications. You don't need to define manually a particular test/package to run or wait for all repository tests to run. Get faster and more reliable feedback from your tests without too much context switching between testing and writing code. Good fit for TDD and CD.
 
+[![asciicast](https://asciinema.org/a/NWCyhilRr7bdbrnVd0b9CVaKv.svg)](https://asciinema.org/a/NWCyhilRr7bdbrnVd0b9CVaKv?t=10)
+
 ## Edge cases
 
 - Alpha stage
@@ -20,12 +22,14 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 
 # Installation
 	
+ gtr requires go and git commands to be available
+	
 	go get -u github.com/mmirolim/gtr
 
 	
 # Usage
 	
- Run it in project folder
+ Run it in git enabled project folder
  
 	gtr
 	gtr: watcher running...
