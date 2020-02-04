@@ -28,7 +28,9 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
  Run it in project folder
  
 	gtr
+	gtr: watcher running...
 	
+ 
  
 	gtr help
 	Usage of gtr:
@@ -45,7 +47,7 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 		
  It uses default go test cmd to run tests, cpu and gtr itself is limited to NumCPU/2 so it will run smoothly along
 
-	go test -v -vet off -failfast -cpu 2 -run -run TestZ$|TestC$/(A=1|B=2) ./... -args -x -v
+	go test -v -vet off -failfast -cpu 2 -run TestZ$|TestC$/(A=1|B=2) ./... -args -x -v
 
 
  
