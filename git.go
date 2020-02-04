@@ -45,7 +45,7 @@ func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
 		results = append(results, Change{fname, fname, 0, 0})
 	}
 	gitOut.Reset()
-	// get changes in go files
+	// get git diff in a repository
 	// -U0 zero lines around changes
 	// Disallow external diff drivers.
 	gitCmd = exec.CommandContext(ctx, "git", "-C", g.workDir, "diff", "-U0", "--no-ext-diff")

@@ -300,10 +300,11 @@ func TestParseFlag(t *testing.T) {
 		},
 		{
 			desc: "All flags are correctly defined",
-			osArgs: []string{"./binary", "-delay", "10", "-exclude-file-prefix", "h,v,#",
+			osArgs: []string{"./binary", "-C", "/home/user/go", "-delay", "10", "-exclude-file-prefix", "h,v,#",
 				"-exclude-dirs", "vendor,node_modules", "-auto-commit", "t", "-args",
 				"-tf1", "10", "-tf2", "20,30"},
 			out: config{
+				workDir:           "/home/user/go",
 				delay:             10,
 				excludeFilePrefix: []string{"h", "v", "#"},
 				excludeDirs:       []string{"vendor", "node_modules"},

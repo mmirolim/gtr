@@ -326,6 +326,8 @@ LOOP:
 		}
 		nextArg := args[i+1]
 		switch args[i] {
+		case "-C":
+			cfg.workDir = nextArg
 		case "-delay":
 			cfg.delay, err = strconv.Atoi(nextArg)
 			if err != nil {

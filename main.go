@@ -13,9 +13,8 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	workDir := "."
 	logger := log.New(os.Stdout, "gtr: ", 0)
-	diffStrategy := NewGitDiffStrategy(workDir, logger)
+	diffStrategy := NewGitDiffStrategy(cfg.workDir, logger)
 	notifier := NewDesktopNotificator(true, 2000)
 	testRunner := NewGoTestRunner(
 		diffStrategy,
@@ -26,13 +25,13 @@ func main() {
 	tasks := []Task{testRunner, notifier}
 	if len(cfg.autoCommit) > 0 {
 		autoCommitTask := NewTask("AutoCommit",
-			CommitChanges(workDir, NewOsCommand),
+			CommitChanges(cfg.workDir, NewOsCommand),
 			logger)
 		tasks = append(tasks, autoCommitTask)
 		tasks = append(tasks, notifier)
 	}
 	watcher, err := NewWatcher(
-		workDir,
+		cfg.workDir,
 		tasks,
 		cfg.delay,
 		cfg.excludeFilePrefix,
@@ -53,6 +52,7 @@ func main() {
 }
 
 type config struct {
+	workDir           string
 	delay             int
 	excludeFilePrefix []string
 	excludeDirs       []string
@@ -63,6 +63,8 @@ type config struct {
 func flagUsage() string {
 	return `
 Usage of gtr:
+  -C string
+        directory to watch (default ".")
   -args string
     	args to the test binary
   -auto-commit string
@@ -78,6 +80,7 @@ Usage of gtr:
 
 func newConfig() config {
 	return config{
+		workDir:           ".",
 		delay:             1000,
 		excludeFilePrefix: []string{"#"},
 		excludeDirs:       []string{"vendor", "node_modules"},
