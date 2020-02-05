@@ -41,7 +41,7 @@ func (n *DesktopNotificator) Send(ctx context.Context, msg string) error {
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = exec.CommandContext(ctx, "osascript", "-e",
-			fmt.Sprintf("'display notification \"%s\" with title \"%s\"'", msg, msg))
+			fmt.Sprintf("display notification \"%s\" with title \"%s\"", msg, msg))
 
 	case "linux":
 		cmd = exec.CommandContext(ctx, "notify-send", "-t", n.expireTime)
