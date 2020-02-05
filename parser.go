@@ -142,6 +142,8 @@ func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 
 // fnNameFromCallExpr returns name of func/method call
 // from ast.CallExpr
+// TODO Fix unexpected value %T in combine on fluent api ex
+// T.Filter().Map().Something etc
 func fnNameFromCallExpr(fn *ast.CallExpr) (string, error) {
 	var fname string
 	var err error
