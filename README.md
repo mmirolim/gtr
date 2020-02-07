@@ -17,8 +17,8 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 - Reflection operations are not supported (may not resolve affected code)
 - May become slow with big projects
 - Basic support for subtests t.Run
-- Needs more extensive testing
-- Tested only on Linux
+- Needs more extensive testing (tested only on linux and darwin)
+- Does not work with monorepo
 
 # Installation
 	
