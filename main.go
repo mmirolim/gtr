@@ -64,7 +64,7 @@ func flagUsage() string {
 	return `
 Usage of gtr:
   -C string
-        directory to watch (default ".")
+        git root directory to watch (default ".")
   -args string
     	args to the test binary
   -auto-commit string

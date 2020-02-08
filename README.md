@@ -18,7 +18,7 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 - May become slow with big projects
 - Basic support for subtests t.Run
 - Needs more extensive testing (tested only on linux and darwin)
-- Does not work with monorepo
+- May not work in the root of monorepo because of “Too many open files” problem
 
 # Installation
 	
@@ -29,7 +29,7 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 	
 # Usage
 	
- Run it in git enabled project folder
+ Run it in git enabled project root folder or pass -C flag with path to git root directory
  
 	gtr
 	gtr: watcher running...
@@ -39,7 +39,7 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 	gtr help
 	Usage of gtr:
 	-C string
-		  directory to watch (default ".")
+		  git root directory to watch (default ".")
 	-args string
 		  args to the test binary
 	-auto-commit string
