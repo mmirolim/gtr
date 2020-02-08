@@ -140,41 +140,6 @@ func changesFromGitDiff(diff bytes.Buffer) ([]Change, error) {
 	return changes, serr
 }
 
-// fnNameFromCallExpr returns name of func/method call
-// from ast.CallExpr
-// TODO Fix unexpected value %T in combine on fluent api ex
-// T.Filter().Map().Something etc
-func fnNameFromCallExpr(fn *ast.CallExpr) (string, error) {
-	var fname string
-	var err error
-	var combineName func(*ast.SelectorExpr) string
-
-	combineName = func(expr *ast.SelectorExpr) string {
-		switch v := expr.X.(type) {
-		case *ast.Ident:
-			// base case
-			return v.Name + "." + expr.Sel.Name
-		case *ast.SelectorExpr:
-			return combineName(v) + "." + expr.Sel.Name
-		default:
-			err = fmt.Errorf("unexpected value %T", v)
-			return ""
-		}
-	}
-
-	switch v := fn.Fun.(type) {
-	case *ast.Ident:
-		// base case
-		fname = v.Name
-	case *ast.SelectorExpr:
-		fname = combineName(v)
-	default:
-		err = fmt.Errorf("unexpected value %T", v)
-	}
-
-	return fname, err
-}
-
 // FileInfo file metadata
 // with file name, package it depends
 // number of lines and FileBlocks

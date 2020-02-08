@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"go/ast"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -119,101 +118,6 @@ index 6e2c328..0000000
 			t.Errorf("%# v", pretty.Formatter(diffs))
 		}
 
-	}
-}
-
-func TestFnNameFromCallExpr(t *testing.T) {
-	cases := []struct {
-		callExpr *ast.CallExpr
-		output   string
-		err      error
-	}{
-		{
-			&ast.CallExpr{
-				Fun: &ast.Ident{
-					Name: "F1",
-				},
-			}, "F1", nil},
-		{
-			&ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X: &ast.Ident{
-						Name: "t",
-					},
-					Sel: &ast.Ident{
-						Name: "Error",
-					},
-				},
-			}, "t.Error", nil},
-		{
-			&ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X: &ast.Ident{
-						Name: "pkg1",
-					},
-					Sel: &ast.Ident{
-						Name: "F2",
-					},
-				},
-			}, "pkg1.F2", nil,
-		},
-		{
-			&ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X: &ast.Ident{
-						Name: "pkgc",
-					},
-					Sel: &ast.Ident{
-						Name: "Diff",
-					},
-				},
-			}, "pkgc.Diff", nil,
-		},
-		{
-			&ast.CallExpr{
-				Fun: &ast.SelectorExpr{
-					X: &ast.SelectorExpr{
-						X: &ast.Ident{
-							NamePos: 95,
-							Name:    "pk",
-						},
-						Sel: &ast.Ident{
-							NamePos: 98,
-							Name:    "Type",
-						},
-					},
-					Sel: &ast.Ident{
-						NamePos: 103,
-						Name:    "Min",
-					},
-				}},
-			"pk.Type.Min", nil,
-		},
-		{
-			&ast.CallExpr{
-				Fun: &ast.IndexExpr{
-					X: &ast.Ident{
-						NamePos: 307,
-						Name:    "m",
-						Obj: &ast.Object{
-							Kind: 4,
-							Name: "m",
-							Data: int(0),
-							Type: nil,
-						},
-					},
-				},
-			}, "", errors.New("unexpected value *ast.IndexExpr"),
-		},
-	}
-	for i, tc := range cases {
-		fnName, err := fnNameFromCallExpr(tc.callExpr)
-		if isUnexpectedErr(t, i, "", tc.err, err) {
-			continue
-		}
-		if fnName != tc.output {
-			t.Errorf("case [%d]\nexpected %#v\ngot %#v", i, tc.output, fnName)
-		}
 	}
 }
 
