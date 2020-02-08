@@ -11,14 +11,13 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 
 ## Edge cases
 
-- Alpha stage
+- At an early stage of development
 - Works only with go standard testing library
 - May not find all affected tests
 - Reflection operations are not supported (may not resolve affected code)
 - May become slow with big projects
-- Basic support for subtests t.Run
+- May fail with “too many open files” error if file-descriptors limit is not enough
 - Needs more extensive testing (tested only on linux and darwin)
-- May not work in the root of monorepo because of “Too many open files” problem
 
 # Installation
 	
@@ -39,7 +38,7 @@ Go auto testing tool with cruise control. GTR uses std lib pointer analysis to f
 	gtr help
 	Usage of gtr:
 	-C string
-		  git root directory to watch (default ".")
+		  directory to watch (default ".")
 	-args string
 		  args to the test binary
 	-auto-commit string

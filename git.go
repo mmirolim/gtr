@@ -32,8 +32,8 @@ func NewGitCMD(workDir string) *GitCMD {
 func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
 	var gitOut bytes.Buffer
 	var results []Change
-	// get not yet committed go files
-	gitCmd := exec.CommandContext(ctx, "git", "-C", g.workDir, "status", "--short")
+	// get not yet committed go files in a workdir
+	gitCmd := exec.CommandContext(ctx, "git", "-C", g.workDir, "status", "--short", g.workDir)
 	gitCmd.Stdout = &gitOut
 	err := gitCmd.Run()
 	if err != nil {
@@ -45,10 +45,10 @@ func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
 		results = append(results, Change{fname, fname, 0, 0})
 	}
 	gitOut.Reset()
-	// get git diff in a repository
+	// get git diff changes only in workDir (--relative)
 	// -U0 zero lines around changes
 	// Disallow external diff drivers.
-	gitCmd = exec.CommandContext(ctx, "git", "-C", g.workDir, "diff", "-U0", "--no-ext-diff")
+	gitCmd = exec.CommandContext(ctx, "git", "-C", g.workDir, "diff", "-U0", "--no-ext-diff", "--relative")
 	gitCmd.Stdout = &gitOut
 	err = gitCmd.Run()
 	if err != nil {
