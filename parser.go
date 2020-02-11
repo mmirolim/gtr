@@ -213,6 +213,9 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 	}
 	parseFuncDecl := func(fn *ast.FuncDecl) (FileBlock, error) {
 		var block FileBlock
+		if fn == nil {
+			return block, errors.New("parseFuncDecl FuncDecl is nil")
+		}
 		block.typ = BlockFunc
 		block.name = fn.Name.Name
 		block.start = fset.Position(fn.Body.Lbrace).Line
