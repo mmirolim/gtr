@@ -11,6 +11,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -348,4 +350,97 @@ func getModuleName(workDir string) (string, error) {
 	}
 
 	return strings.Split(string(line), " ")[1], nil
+}
+
+var CoverProflineRe = regexp.MustCompile(`^(.+):([0-9]+).([0-9]+),([0-9]+).([0-9]+) ([0-9]+) ([0-9]+)$`)
+
+type FileCoverInfo struct {
+	File   string
+	Blocks [][2]int // [start, end]
+}
+
+// ParseCoverProfile returns map of FileCoverInfo by file name or error
+func ParseCoverProfile(data []byte) (map[string]*FileCoverInfo, error) {
+	mapByFile := map[string]*FileCoverInfo{}
+	buf := bytes.NewBuffer(data)
+	// skip first mode line
+	_, err := buf.ReadString('\n')
+	if err != nil {
+		return nil, err
+	}
+	for {
+		line, err := buf.ReadString('\n')
+		if err != nil {
+			if err != io.EOF {
+				return nil, err
+			} else if line == "" {
+				break
+			}
+		}
+
+		// clean from \r\n
+		if line[len(line)-2] == '\r' {
+			line = line[:len(line)-2]
+		} else {
+			line = line[:len(line)-1]
+		}
+		cline := CoverProflineRe.FindStringSubmatch(line)
+		if cline == nil {
+			return nil, fmt.Errorf("unexpected cover line format %q", line)
+		}
+		// process line
+		fn := cline[1]
+		info := mapByFile[fn]
+		if info == nil {
+			info = &FileCoverInfo{
+				File: fn,
+			}
+			mapByFile[fn] = info
+		}
+		if cline[7] == "0" {
+			// skip uncovered lines
+			continue
+		}
+		start, err := strconv.Atoi(cline[2])
+		if err != nil {
+			return nil, err
+		}
+		end, err := strconv.Atoi(cline[4])
+		if err != nil {
+			return nil, err
+		}
+
+		info.Blocks = append(info.Blocks, [2]int{start, end})
+	}
+
+	// sort blocks to get bigger blocks
+	for _, info := range mapByFile {
+		sort.Slice(info.Blocks, func(i, j int) bool {
+			// sort by start line
+			return info.Blocks[i][0] < info.Blocks[j][0]
+		})
+		// merge blocks
+		var blocks [][2]int
+		s := 0
+		for i := 1; i < len(info.Blocks); i++ {
+			if info.Blocks[s][1] < info.Blocks[i][0] {
+				// does not intersect
+				blocks = append(blocks, info.Blocks[s])
+				s = i
+				continue
+			}
+			if info.Blocks[s][1] >= info.Blocks[i][1] {
+				continue
+			}
+			if info.Blocks[s][1] < info.Blocks[i][1] {
+				// intersects
+				info.Blocks[s][1] = info.Blocks[i][1]
+			}
+		}
+		if len(info.Blocks) > 0 {
+			info.Blocks = append(blocks, info.Blocks[s])
+		}
+	}
+
+	return mapByFile, err
 }

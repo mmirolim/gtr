@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -326,6 +327,74 @@ require (
 
 		if !reflect.DeepEqual(tc.module, module) {
 			t.Errorf("case [%d] %s\nexpected %s, got %s", i, tc.desc, tc.module, module)
+		}
+	}
+}
+
+func TestParseCoverProfile(t *testing.T) {
+	testRunnerFile := []byte(`mode: set
+mmirolim/gtr/strategy.go:329.38,331.15 1 0
+mmirolim/gtr/strategy.go:333.28,335.7 1 0
+mmirolim/gtr/testrunner.go:39.17,46.2 1 1
+mmirolim/gtr/testrunner.go:49.37,51.2 1 0
+mmirolim/gtr/testrunner.go:100.77,102.18 2 1
+mmirolim/gtr/testrunner.go:105.2,105.24 1 1
+mmirolim/gtr/testrunner.go:108.2,108.12 1 1
+mmirolim/gtr/testrunner.go:102.18,104.3 1 1
+mmirolim/gtr/testrunner.go:105.24,107.3 1 1
+mmirolim/gtr/testrunner.go:111.77,113.12 2 1
+mmirolim/gtr/testrunner.go:121.2,123.21 3 1
+mmirolim/gtr/testrunner.go:126.2,126.30 1 1
+mmirolim/gtr/testrunner.go:113.12,117.3 3 1
+mmirolim/gtr/testrunner.go:117.8,119.3 1 0
+mmirolim/gtr/testrunner.go:123.21,125.3 1 1
+mmirolim/gtr/watcher.go:51.21,64.2 2 0
+mmirolim/gtr/watcher.go:67.31,71.16 3 1
+`)
+	cases := []struct {
+		desc    string
+		data    []byte
+		infoMap map[string]*FileCoverInfo
+		err     error
+	}{
+		{
+			desc: "No data",
+			data: nil,
+			err:  io.EOF,
+		},
+		{
+			desc: "Cover profile data for multiple files",
+			data: testRunnerFile,
+			infoMap: map[string]*FileCoverInfo{
+				"mmirolim/gtr/watcher.go": &FileCoverInfo{
+					"mmirolim/gtr/watcher.go", [][2]int{{67, 71}},
+				},
+				"mmirolim/gtr/strategy.go": &FileCoverInfo{
+					File: "mmirolim/gtr/strategy.go",
+				},
+				"mmirolim/gtr/testrunner.go": &FileCoverInfo{
+					"mmirolim/gtr/testrunner.go",
+					[][2]int{{39, 46}, {100, 104}, {105, 107}, {108, 108},
+						{111, 117}, {121, 125}, {126, 126}},
+				},
+			},
+		},
+	}
+
+	for i, tc := range cases {
+		infos, err := ParseCoverProfile(tc.data)
+		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
+			continue
+		}
+		if err != nil {
+			continue
+		}
+
+		diffs := pretty.Diff(tc.infoMap, infos)
+		if len(diffs) > 0 {
+			t.Errorf("case [%d] %s\nexpected %+v, got %+v", i, tc.desc, tc.infoMap, infos)
+			fmt.Printf("Diffs %# v\n", pretty.Formatter(diffs)) // output for debug
+
 		}
 	}
 }
