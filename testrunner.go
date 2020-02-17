@@ -15,7 +15,7 @@ var _ Task = (*GoTestRunner)(nil)
 
 // Strategy interface defines provider of tests for the testrunner
 type Strategy interface {
-	TestsToRun(context.Context) (tests []string, subTests []string, err error)
+	TestsToRun(context.Context) (pkgPaths, tests, subTests []string, err error)
 }
 
 // GoTestRunner runs go tests
@@ -53,7 +53,7 @@ func (tr *GoTestRunner) ID() string {
 // Run method implements Task interface
 // runs go tests
 func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
-	tests, subTests, err := tr.strategy.TestsToRun(ctx)
+	pkgPaths, tests, subTests, err := tr.strategy.TestsToRun(ctx)
 	if err != nil {
 		if err == ErrBuildFailed {
 			return "Build Failed", nil
@@ -63,6 +63,12 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	if len(tests) == 0 && len(subTests) == 0 {
 		return "No test found to run", nil
 	}
+	var listArg []string
+	if len(pkgPaths) == 0 {
+		listArg = []string{"."}
+	} else {
+		listArg = pkgPaths
+	}
 
 	testNames := tr.joinTestAndSubtest(tests, subTests)
 	// run tests
@@ -70,10 +76,15 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	// in case of console blocking programs
 	// -vet=off to improve speed
 	// TODO if all test in same package, run only it
-	cmd := tr.cmd(ctx, "go", "test", "-v", "-vet", "off", "-failfast",
-		"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0)),
-		"-run", testNames, "./...", "-args", tr.args,
-	)
+	testParams := []string{"test", "-v", "-vet", "off", "-failfast",
+		"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0)), "-run", testNames}
+
+	testParams = append(testParams, listArg...)
+	if len(tr.args) > 0 {
+		testParams := append(testParams, "-args")
+		testParams = append(testParams, tr.args)
+	}
+	cmd := tr.cmd(ctx, "go", testParams...)
 	logStrList(tr.log, "Tests to run", tests, true)
 	if len(subTests) > 0 {
 		logStrList(tr.log, "Subtests to run", subTests, true)
@@ -101,6 +112,9 @@ func (tr *GoTestRunner) joinTestAndSubtest(tests, subTests []string) string {
 	out := strings.Join(tests, "$|")
 	if len(out) > 0 {
 		out += "$"
+	}
+	for i := range subTests {
+		subTests[i] = strings.ReplaceAll(subTests[i], " ", "_")
 	}
 	if len(subTests) != 0 {
 		out += "/(" + strings.Join(subTests, "|") + ")"

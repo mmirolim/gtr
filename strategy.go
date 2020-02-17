@@ -42,7 +42,9 @@ func NewGitDiffStrategy(workDir string, logger *log.Logger) *GitDiffStrategy {
 // affected by files
 // TODO test on different modules and Gopath version
 // TODO improve performance, TestsToRun testing takes more than 4s
-func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string, subTestsList []string, err error) {
+func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (
+	pkgPathsList, testsList, subTestsList []string,
+	err error) {
 	changes, err := gds.gitCmd.Diff(ctx)
 	if err != nil {
 		err = fmt.Errorf("gitCmd.Diff error %s", err)
@@ -140,12 +142,14 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 
 	testsSet := map[string]bool{}
 	subTests := map[string]bool{}
+	pkgPaths := map[string]bool{}
 	for tnode := range allTests {
 		callgraph.PathSearch(tnode, func(n *callgraph.Node) bool {
 			if !changedNodes[n] {
 				return false
 			}
 			funName := tnode.Func.Name()
+			pkgPaths[tnode.Func.Pkg.Pkg.Path()] = true
 			for {
 				idx := strings.LastIndexByte(funName, '$')
 				// is anon func
@@ -172,7 +176,7 @@ func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (testsList []string,
 		})
 	}
 
-	return mapStrToSlice(testsSet), mapStrToSlice(subTests), nil
+	return mapStrToSlice(pkgPaths), mapStrToSlice(testsSet), mapStrToSlice(subTests), nil
 }
 
 func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[string]FileInfo, error) {
