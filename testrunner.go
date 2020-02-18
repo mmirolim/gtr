@@ -116,10 +116,11 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 		cmd.SetEnv(os.Environ())
 		cmd.Run()
 	} else {
-	OUTER: // run cmd for each test and skip subtests to have separation between tests
+		// run cmd for each test and skip subtests to have separation between tests
 		for pkg, pkgtests := range pkgPaths {
 			for _, tname := range pkgtests {
-				testParams := []string{"test", "-v", "-vet", "off", "-failfast",
+				// run all tests
+				testParams := []string{"test", "-v", "-vet", "off",
 					"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0))}
 
 				if tr.strategy.CoverageEnabled() {
@@ -143,10 +144,6 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 				cmd.SetStderr(os.Stderr)
 				cmd.SetEnv(os.Environ())
 				cmd.Run()
-				if !cmd.Success() {
-					// stop executing tests
-					break OUTER
-				}
 			}
 		}
 	}
