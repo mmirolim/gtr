@@ -97,7 +97,6 @@ var (
 go 1.13
 `)
 	fileA = []byte(`package main
-
 import "fmt"
 
 var a, b int = 10, 20
