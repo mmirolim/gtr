@@ -91,12 +91,12 @@ func TestChangesToFileBlocks(t *testing.T) {
 
 }
 
-func TestSSAStrategyTestRun(t *testing.T) {
-	var gomod = []byte(`module git-diff-strategy-test-run
+var (
+	gomod = []byte(`module git-diff-strategy-test-run
 
 go 1.13
 `)
-	var fileA = []byte(`package main
+	fileA = []byte(`package main
 
 import "fmt"
 
@@ -111,7 +111,7 @@ func add(a, b int) int {
 }
 `)
 
-	var fileB = []byte(`package main
+	fileB = []byte(`package main
 
 const PI = 3.14
 
@@ -135,7 +135,7 @@ func max(a, b int) int {
 }
 `)
 
-	var testFile = []byte(`package main
+	testFile = []byte(`package main
 
 import "testing"
 
@@ -188,7 +188,7 @@ func helperMax(t *testing.T) {
 	}
 }
 `)
-	fileAUpdateAdd := []byte(`package main
+	fileAUpdateAdd = []byte(`package main
 
 import "fmt"
 
@@ -203,7 +203,7 @@ func add(a, b int) int {
 	return a + b
 }
 `)
-	var fileBUpdateMax = []byte(`package main
+	fileBUpdateMax = []byte(`package main
 
 const PI = 3.14
 
@@ -226,7 +226,7 @@ func max(a, b int) int {
 	return b
 }
 `)
-	var pkgAFile = []byte(`package pkga
+	pkgAFile = []byte(`package pkga
 
 import (
 	rename "git-diff-strategy-test-run/pkgb"
@@ -252,7 +252,7 @@ func F() string {
 	return "pkga.F()->" + rename.F()
 }
 `)
-	var pkgBFile = []byte(`package pkgb
+	pkgBFile = []byte(`package pkgb
 
 type A struct {
 	b int
@@ -274,7 +274,7 @@ func F() string {
 	return "pkgb.F()"
 }
 `)
-	var pkgATestFile = []byte(`package pkga
+	pkgATestFile = []byte(`package pkga
 
 import (
         "testing"
@@ -301,7 +301,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 	}
 }
 `)
-	var pkgBFileUpdateF = []byte(`package pkgb
+	pkgBFileUpdateF = []byte(`package pkgb
 
 	type A struct {
 		b int
@@ -324,7 +324,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 	}
 	`)
 
-	var pkgBFileUpdateMethods = []byte(`package pkgb
+	pkgBFileUpdateMethods = []byte(`package pkgb
 
 	type A struct {
 		b int
@@ -346,7 +346,9 @@ func TestPkgBMethodOnValue(t *testing.T) {
 		return "pkgb.F():updated"
 	}
 	`)
+)
 
+func TestSSAStrategyTestRun(t *testing.T) {
 	pkgAFilePath := filepath.Join("pkga", "f.go")
 	pkgATestFilePath := filepath.Join("pkga", "f_test.go")
 	pkgBFilePath := filepath.Join("pkgb", "f.go")

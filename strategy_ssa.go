@@ -38,7 +38,7 @@ func NewSSAStrategy(workDir string, logger *log.Logger) *SSAStrategy {
 	}
 }
 
-func (gds *SSAStrategy) CoverageEnabled() bool {
+func (ss *SSAStrategy) CoverageEnabled() bool {
 	return false
 }
 
@@ -46,9 +46,9 @@ func (gds *SSAStrategy) CoverageEnabled() bool {
 // affected by files
 // TODO test on different modules and Gopath version
 // TODO improve performance, TestsToRun testing takes more than 4s
-func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
+func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 	runAll bool, testsList, subTestsList []string, err error) {
-	changes, err := gds.gitCmd.Diff(ctx)
+	changes, err := ss.gitCmd.Diff(ctx)
 	if err != nil {
 		err = fmt.Errorf("gitCmd.Diff error %s", err)
 		return
@@ -75,7 +75,7 @@ func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
 		if _, ok := fileInfos[change.fpath]; ok {
 			continue
 		}
-		info, err = getFileInfo(filepath.Join(gds.workDir, change.fpath), nil)
+		info, err = getFileInfo(filepath.Join(ss.workDir, change.fpath), nil)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "\n=======\033[31m Build Failed \033[39m=======")
 			fmt.Fprintf(os.Stderr, "%s", err)
@@ -91,7 +91,7 @@ func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
 		return
 	}
 
-	moduleName, filePathToPkg, allPkgs, analyzeErr := analyzeGoCode(ctx, gds.workDir)
+	moduleName, filePathToPkg, allPkgs, analyzeErr := analyzeGoCode(ctx, ss.workDir)
 	if analyzeErr != nil {
 		err = ErrBuildFailed
 		return
@@ -138,7 +138,7 @@ func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
 		}
 	}
 	if len(changedNodes) == 0 {
-		gds.log.Println("no updated nodes found")
+		ss.log.Println("no updated nodes found")
 		return
 	}
 	allTests := getAllTestsInModule(moduleName, graph)
