@@ -14,10 +14,10 @@ func main() {
 		os.Exit(1)
 	}
 	logger := log.New(os.Stdout, "gtr: ", 0)
-	diffStrategy := NewGitDiffStrategy(cfg.workDir, logger)
+	ssaStrategy := NewSSAStrategy(cfg.workDir, logger)
 	notifier := NewDesktopNotificator(true, 2000)
 	testRunner := NewGoTestRunner(
-		diffStrategy,
+		ssaStrategy,
 		NewOsCommand,
 		cfg.argsToTestBinary,
 		logger,

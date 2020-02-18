@@ -19,19 +19,19 @@ import (
 // ErrBuildFailed is the error returned when source build fails
 var ErrBuildFailed = errors.New("build failed")
 
-var _ Strategy = (*GitDiffStrategy)(nil)
+var _ Strategy = (*SSAStrategy)(nil)
 
-// GitDiffStrategy finds test to run from git diffs
+// SSAStrategy finds test to run from git diffs
 // and pointer analysis
-type GitDiffStrategy struct {
+type SSAStrategy struct {
 	workDir string
 	gitCmd  *GitCMD
 	log     *log.Logger
 }
 
-// NewGitDiffStrategy returns strategy
-func NewGitDiffStrategy(workDir string, logger *log.Logger) *GitDiffStrategy {
-	return &GitDiffStrategy{
+// NewSSAStrategy returns strategy
+func NewSSAStrategy(workDir string, logger *log.Logger) *SSAStrategy {
+	return &SSAStrategy{
 		workDir: workDir,
 		gitCmd:  NewGitCMD(workDir),
 		log:     logger,
@@ -42,7 +42,7 @@ func NewGitDiffStrategy(workDir string, logger *log.Logger) *GitDiffStrategy {
 // affected by files
 // TODO test on different modules and Gopath version
 // TODO improve performance, TestsToRun testing takes more than 4s
-func (gds *GitDiffStrategy) TestsToRun(ctx context.Context) (
+func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
 	pkgPathsList, testsList, subTestsList []string,
 	err error) {
 	changes, err := gds.gitCmd.Diff(ctx)

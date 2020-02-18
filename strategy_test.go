@@ -91,7 +91,7 @@ func TestChangesToFileBlocks(t *testing.T) {
 
 }
 
-func TestGitDiffStrategyTestRun(t *testing.T) {
+func TestSSAStrategyTestRun(t *testing.T) {
 	var gomod = []byte(`module git-diff-strategy-test-run
 
 go 1.13
@@ -362,7 +362,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 		pkgATestFilePath: pkgATestFile,
 	}
 	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
-	setup := func() *GitDiffStrategy {
+	setup := func() *SSAStrategy {
 		setupTestGitDir(t,
 			testDir, files,
 			[]string{
@@ -370,7 +370,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 				pkgAFilePath, pkgBFilePath, pkgATestFilePath,
 			},
 		)
-		return NewGitDiffStrategy(testDir, logger)
+		return NewSSAStrategy(testDir, logger)
 	}
 
 	// teardown
@@ -444,11 +444,11 @@ func TestPkgBMethodOnValue(t *testing.T) {
 		// TODO add test with helper func in different packages
 		// TODO add test with different testing frameworks
 	}
-	gitDiffStrategy := setup()
+	ssaStrategy := setup()
 	for i, tc := range cases {
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
-		pkgPathsList, testsList, subTestsList, err := gitDiffStrategy.TestsToRun(context.Background())
+		pkgPathsList, testsList, subTestsList, err := ssaStrategy.TestsToRun(context.Background())
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
