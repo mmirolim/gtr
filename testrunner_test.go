@@ -11,14 +11,18 @@ import (
 var _ Strategy = (*dummyStrategy)(nil)
 
 type dummyStrategy struct {
-	pkgPaths, tests, subtests []string
-	err                       error
+	tests, subtests []string
+	err             error
+}
+
+func (ds *dummyStrategy) CoverageEnabled() bool {
+	return false
 }
 
 func (ds *dummyStrategy) TestsToRun(ctx context.Context) (
-	runAll bool, pkgPaths, tests, subTests []string, err error,
+	runAll bool, tests, subTests []string, err error,
 ) {
-	return true, ds.pkgPaths, ds.tests, ds.subtests, ds.err
+	return true, ds.tests, ds.subtests, ds.err
 }
 
 func TestGoTestRunnerRun(t *testing.T) {
@@ -26,7 +30,6 @@ func TestGoTestRunnerRun(t *testing.T) {
 		desc        string
 		strategyErr error
 		cmdSuccess  bool
-		pkgPaths    []string
 		tests       []string
 		subTests    []string
 		output      string
@@ -41,13 +44,13 @@ func TestGoTestRunnerRun(t *testing.T) {
 		{
 			desc:       "2 top level tests pass",
 			cmdSuccess: true,
-			tests:      []string{"TestZ", "TestC"},
+			tests:      []string{"module/pkga.TestZ", "module.TestC"},
 			output:     "Tests PASS: TestZ$|TestC$",
 		},
 		{
 			desc:       "1 top level test and 2 subtests pass",
 			cmdSuccess: true,
-			tests:      []string{"TestZ"},
+			tests:      []string{"module.TestZ"},
 			subTests:   []string{"b 1", "z 2"},
 			output:     "Tests PASS: TestZ$/(b_1|z_2)",
 		},
@@ -55,14 +58,14 @@ func TestGoTestRunnerRun(t *testing.T) {
 			desc:        "Strategy error",
 			strategyErr: errors.New("injected error"),
 			cmdSuccess:  true,
-			tests:       []string{"TestZ"},
+			tests:       []string{"module/pkga/pkgb.TestZ"},
 			subTests:    []string{"b1"},
 			err:         errors.New("strategy error injected error"),
 		},
 		{
 			desc:       "Tests failed",
 			cmdSuccess: false,
-			tests:      []string{"TestZ"},
+			tests:      []string{"module.TestZ"},
 			subTests:   []string{"b1"},
 			output:     "Tests FAIL: TestZ$/(b1)",
 		},
@@ -72,20 +75,11 @@ func TestGoTestRunnerRun(t *testing.T) {
 			subTests:   []string{"group"},
 			output:     "Tests PASS: /(group)",
 		},
-		{
-			desc:       "Test Pass package module-name/pkgA",
-			cmdSuccess: true,
-			pkgPaths:   []string{"module-name/pkgA"},
-			tests:      []string{"TestZ"},
-			subTests:   []string{"b1"},
-			output:     "Tests PASS: TestZ$/(b1)",
-		},
 	}
 	logger := log.New(os.Stdout, "TestGoTestRunnerRun:", log.Ltime)
 	var ds dummyStrategy
 	for i, tc := range cases {
 		ds.err = tc.strategyErr
-		ds.pkgPaths = tc.pkgPaths
 		ds.tests = tc.tests
 		ds.subtests = tc.subTests
 		mockCmd := NewMockCommand(nil, tc.cmdSuccess)

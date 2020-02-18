@@ -381,10 +381,10 @@ func TestPkgBMethodOnValue(t *testing.T) {
 		}
 	}()
 	cases := []struct {
-		desc                               string
-		setup, tearDown                    func() error
-		outPkgPaths, outTests, outSubTests []string
-		err                                error
+		desc                  string
+		setup, tearDown       func() error
+		outTests, outSubTests []string
+		err                   error
 	}{
 		{desc: "No changes in files"},
 		{
@@ -396,8 +396,9 @@ func TestPkgBMethodOnValue(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit file_a.go changes")
 			},
-			outPkgPaths: []string{"git-diff-strategy-test-run"},
-			outTests:    []string{"TestAdd", "TestMinMaxAdd", "TestSub"},
+			outTests: []string{"git-diff-strategy-test-run.TestAdd",
+				"git-diff-strategy-test-run.TestMinMaxAdd",
+				"git-diff-strategy-test-run.TestSub"},
 			outSubTests: []string{"min"},
 		},
 		{
@@ -409,8 +410,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit file_b.go changes") // Test
 			},
-			outPkgPaths: []string{"git-diff-strategy-test-run"},
-			outTests:    []string{"TestMinMaxAdd"},
+			outTests:    []string{"git-diff-strategy-test-run.TestMinMaxAdd"},
 			outSubTests: []string{"group test 1", "max"},
 		},
 		{
@@ -423,8 +423,8 @@ func TestPkgBMethodOnValue(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit changes")
 			},
-			outPkgPaths: []string{"git-diff-strategy-test-run/pkga"},
-			outTests:    []string{"TestPkgAFunc", "TestPkgBMethodOnValue"},
+			outTests: []string{"git-diff-strategy-test-run/pkga.TestPkgAFunc",
+				"git-diff-strategy-test-run/pkga.TestPkgBMethodOnValue"},
 			outSubTests: nil,
 		},
 		{
@@ -437,8 +437,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit changes")
 			},
-			outPkgPaths: []string{"git-diff-strategy-test-run/pkga"},
-			outTests:    []string{"TestPkgBMethodOnValue"},
+			outTests:    []string{"git-diff-strategy-test-run/pkga.TestPkgBMethodOnValue"},
 			outSubTests: nil,
 		},
 		// TODO add test with helper func in different packages
@@ -448,17 +447,13 @@ func TestPkgBMethodOnValue(t *testing.T) {
 	for i, tc := range cases {
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
-		_, pkgPathsList, testsList, subTestsList, err := ssaStrategy.TestsToRun(context.Background())
+		_, testsList, subTestsList, err := ssaStrategy.TestsToRun(context.Background())
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue
 		}
-		sort.Strings(tc.outPkgPaths)
-		sort.Strings(pkgPathsList)
-		if !reflect.DeepEqual(tc.outPkgPaths, pkgPathsList) {
-			t.Errorf("case [%d] %s\nexpected pkg paths %+v\ngot %+v", i, tc.desc, tc.outPkgPaths, pkgPathsList)
-		}
+		// TODO test packages are handled
 		sort.Strings(tc.outTests)
 		sort.Strings(testsList)
 		if !reflect.DeepEqual(tc.outTests, testsList) {

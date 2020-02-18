@@ -38,14 +38,16 @@ func NewSSAStrategy(workDir string, logger *log.Logger) *SSAStrategy {
 	}
 }
 
+func (gds *SSAStrategy) CoverageEnabled() bool {
+	return false
+}
+
 // TestsToRun returns names of tests and subtests
 // affected by files
 // TODO test on different modules and Gopath version
 // TODO improve performance, TestsToRun testing takes more than 4s
 func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
-	runAll bool,
-	pkgPathsList, testsList, subTestsList []string,
-	err error) {
+	runAll bool, testsList, subTestsList []string, err error) {
 	changes, err := gds.gitCmd.Diff(ctx)
 	if err != nil {
 		err = fmt.Errorf("gitCmd.Diff error %s", err)
@@ -143,23 +145,23 @@ func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
 
 	testsSet := map[string]bool{}
 	subTests := map[string]bool{}
-	pkgPaths := map[string]bool{}
 	for tnode := range allTests {
 		callgraph.PathSearch(tnode, func(n *callgraph.Node) bool {
 			if !changedNodes[n] {
 				return false
 			}
 			funName := tnode.Func.Name()
-			pkgPaths[tnode.Func.Pkg.Pkg.Path()] = true
+			pkgPath := tnode.Func.Pkg.Pkg.Path()
 			for {
 				idx := strings.LastIndexByte(funName, '$')
 				// is anon func
 				for tn, dic := range allTests {
 					if subName, ok := dic[funName]; ok {
 						// add all subtest with this helper
+						// TODO maybe use pkg as prefix
 						subTests[subName] = true
 						if strings.LastIndexByte(tn.Func.Name(), '$') == -1 {
-							testsSet[tn.Func.Name()] = true
+							testsSet[fmt.Sprintf("%s.%s", pkgPath, tn.Func.Name())] = true
 						}
 
 					}
@@ -167,7 +169,7 @@ func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
 				if idx > -1 {
 					funName = funName[0:idx]
 				} else if len(funName) > 4 && funName[0:4] == "Test" {
-					testsSet[funName] = true
+					testsSet[fmt.Sprintf("%s.%s", pkgPath, funName)] = true
 					break
 				} else {
 					break
@@ -177,11 +179,7 @@ func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
 		})
 	}
 
-	return true,
-		mapStrToSlice(pkgPaths),
-		mapStrToSlice(testsSet),
-		mapStrToSlice(subTests),
-		nil
+	return true, mapStrToSlice(testsSet), mapStrToSlice(subTests), nil
 }
 
 func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[string]FileInfo, error) {

@@ -15,7 +15,8 @@ var _ Task = (*GoTestRunner)(nil)
 
 // Strategy interface defines provider of tests for the testrunner
 type Strategy interface {
-	TestsToRun(context.Context) (runAll bool, pkgPaths, tests, subTests []string, err error)
+	CoverageEnabled() bool
+	TestsToRun(context.Context) (runAll bool, tests, subTests []string, err error)
 }
 
 // GoTestRunner runs go tests
@@ -53,7 +54,7 @@ func (tr *GoTestRunner) ID() string {
 // Run method implements Task interface
 // runs go tests
 func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
-	runAll, pkgPaths, tests, subTests, err := tr.strategy.TestsToRun(ctx)
+	runAll, tests, subTests, err := tr.strategy.TestsToRun(ctx)
 	if err != nil {
 		if err == ErrBuildFailed {
 			return "Build Failed", nil
@@ -64,47 +65,98 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 		return "No test found to run", nil
 	}
 	var listArg []string
-	if len(pkgPaths) == 0 {
-		listArg = []string{"."}
-	} else {
-		listArg = pkgPaths
+	pkgPaths := map[string][]string{}
+	for _, tname := range tests {
+		id := strings.LastIndexByte(tname, '.')
+		pkgPath := tname[:id]
+		if pkgPath == "" {
+			pkgPath = "."
+		}
+		pkgPaths[pkgPath] = append(pkgPaths[pkgPath], tname[id+1:])
 	}
 
-	testNames := tr.joinTestAndSubtest(tests, subTests)
 	// run tests
 	// do not wait process to finish
 	// in case of console blocking programs
 	// -vet=off to improve speed
 	// TODO handle run all
 	msg := ""
-	if runAll {
-		testParams := []string{"test", "-v", "-vet", "off", "-failfast",
-			"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0)), "-run", testNames}
+	testParams := []string{"test", "-v", "-vet", "off", "-failfast",
+		"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0))}
 
+	logStrList(tr.log, "Tests to run", tests, true)
+	if len(subTests) > 0 {
+		logStrList(tr.log, "Subtests to run", subTests, true)
+	}
+	var pkgList, testNames []string
+	for k, pkgtests := range pkgPaths {
+		pkgList = append(pkgList, k)
+		testNames = append(testNames, pkgtests...)
+	}
+	testsFormated := tr.joinTestAndSubtest(testNames, subTests)
+	var cmd CommandExecutor
+	// TODO refactor
+	if runAll {
+		if tr.strategy.CoverageEnabled() {
+			testParams = append(testParams, "-coverprofile")
+			testParams = append(testParams, "coverage_profile")
+		}
+		testParams = append(testParams, "-run")
+		testParams = append(testParams, testsFormated)
 		testParams = append(testParams, listArg...)
 		if len(tr.args) > 0 {
-			testParams := append(testParams, "-args")
+			testParams = append(testParams, "-args")
 			testParams = append(testParams, tr.args)
 		}
-		cmd := tr.cmd(ctx, "go", testParams...)
-		logStrList(tr.log, "Tests to run", tests, true)
-		if len(subTests) > 0 {
-			logStrList(tr.log, "Subtests to run", subTests, true)
-		}
+		cmd = tr.cmd(ctx, "go", testParams...)
 		tr.log.Println(">>", strings.Join(cmd.GetArgs(), " "))
 
 		cmd.SetStdout(os.Stdout)
 		cmd.SetStderr(os.Stderr)
 		cmd.SetEnv(os.Environ())
-
 		cmd.Run()
-		if cmd.Success() {
-			msg = "Tests PASS: " + testNames
-			tr.log.Println("\033[32mTests PASS\033[39m")
-		} else {
-			msg = "Tests FAIL: " + testNames
-			tr.log.Println("\033[31mTests FAIL\033[39m")
+	} else {
+	OUTER: // run cmd for each test and skip subtests to have separation between tests
+		for pkg, pkgtests := range pkgPaths {
+			for _, tname := range pkgtests {
+				testParams := []string{"test", "-v", "-vet", "off", "-failfast",
+					"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0))}
+
+				if tr.strategy.CoverageEnabled() {
+					testParams = append(testParams, "-coverprofile")
+					testParams = append(testParams, fmt.Sprintf(".gtr/%s.%s",
+						strings.ReplaceAll(pkg, "/", "_"),
+						tname))
+				}
+
+				testParams = append(testParams, "-run")
+				testParams = append(testParams, tname) // test
+				testParams = append(testParams, pkg)   // package
+				if len(tr.args) > 0 {
+					testParams = append(testParams, "-args")
+					testParams = append(testParams, tr.args) // test binary args
+				}
+				cmd = tr.cmd(ctx, "go", testParams...)
+				tr.log.Println(">>", strings.Join(cmd.GetArgs(), " "))
+
+				cmd.SetStdout(os.Stdout)
+				cmd.SetStderr(os.Stderr)
+				cmd.SetEnv(os.Environ())
+				cmd.Run()
+				if !cmd.Success() {
+					// stop executing tests
+					break OUTER
+				}
+			}
 		}
+	}
+
+	if cmd.Success() {
+		msg = "Tests PASS: " + testsFormated
+		tr.log.Println("\033[32mTests PASS\033[39m")
+	} else {
+		msg = "Tests FAIL: " + testsFormated
+		tr.log.Println("\033[31mTests FAIL\033[39m")
 	}
 	return msg, nil
 }
