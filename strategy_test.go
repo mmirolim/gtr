@@ -348,14 +348,14 @@ func TestPkgBMethodOnValue(t *testing.T) {
 	`)
 )
 
-func TestSSAStrategyTestRun(t *testing.T) {
+func TestSSAStrategyTestsToRun(t *testing.T) {
+	// setup
+	testDir := filepath.Join(os.TempDir(), "test_ssa_strategy_tests_to_run")
+	gitCmdRun := NewGitCmd(testDir)
+
 	pkgAFilePath := filepath.Join("pkga", "f.go")
 	pkgATestFilePath := filepath.Join("pkga", "f_test.go")
 	pkgBFilePath := filepath.Join("pkgb", "f.go")
-
-	// setup
-	testDir := filepath.Join(os.TempDir(), "test_diff_strategy_tests_to_run")
-	gitCmdRun := NewGitCmd(testDir)
 
 	files := map[string][]byte{
 		"go.mod":    gomod,
