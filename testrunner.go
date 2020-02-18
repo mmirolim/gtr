@@ -15,7 +15,7 @@ var _ Task = (*GoTestRunner)(nil)
 
 // Strategy interface defines provider of tests for the testrunner
 type Strategy interface {
-	TestsToRun(context.Context) (pkgPaths, tests, subTests []string, err error)
+	TestsToRun(context.Context) (runAll bool, pkgPaths, tests, subTests []string, err error)
 }
 
 // GoTestRunner runs go tests
@@ -53,7 +53,7 @@ func (tr *GoTestRunner) ID() string {
 // Run method implements Task interface
 // runs go tests
 func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
-	pkgPaths, tests, subTests, err := tr.strategy.TestsToRun(ctx)
+	runAll, pkgPaths, tests, subTests, err := tr.strategy.TestsToRun(ctx)
 	if err != nil {
 		if err == ErrBuildFailed {
 			return "Build Failed", nil
@@ -75,34 +75,36 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	// do not wait process to finish
 	// in case of console blocking programs
 	// -vet=off to improve speed
-	// TODO if all test in same package, run only it
-	testParams := []string{"test", "-v", "-vet", "off", "-failfast",
-		"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0)), "-run", testNames}
-
-	testParams = append(testParams, listArg...)
-	if len(tr.args) > 0 {
-		testParams := append(testParams, "-args")
-		testParams = append(testParams, tr.args)
-	}
-	cmd := tr.cmd(ctx, "go", testParams...)
-	logStrList(tr.log, "Tests to run", tests, true)
-	if len(subTests) > 0 {
-		logStrList(tr.log, "Subtests to run", subTests, true)
-	}
-	tr.log.Println(">>", strings.Join(cmd.GetArgs(), " "))
-
-	cmd.SetStdout(os.Stdout)
-	cmd.SetStderr(os.Stderr)
-	cmd.SetEnv(os.Environ())
-
-	cmd.Run()
+	// TODO handle run all
 	msg := ""
-	if cmd.Success() {
-		msg = "Tests PASS: " + testNames
-		tr.log.Println("\033[32mTests PASS\033[39m")
-	} else {
-		msg = "Tests FAIL: " + testNames
-		tr.log.Println("\033[31mTests FAIL\033[39m")
+	if runAll {
+		testParams := []string{"test", "-v", "-vet", "off", "-failfast",
+			"-cpu", strconv.Itoa(runtime.GOMAXPROCS(0)), "-run", testNames}
+
+		testParams = append(testParams, listArg...)
+		if len(tr.args) > 0 {
+			testParams := append(testParams, "-args")
+			testParams = append(testParams, tr.args)
+		}
+		cmd := tr.cmd(ctx, "go", testParams...)
+		logStrList(tr.log, "Tests to run", tests, true)
+		if len(subTests) > 0 {
+			logStrList(tr.log, "Subtests to run", subTests, true)
+		}
+		tr.log.Println(">>", strings.Join(cmd.GetArgs(), " "))
+
+		cmd.SetStdout(os.Stdout)
+		cmd.SetStderr(os.Stderr)
+		cmd.SetEnv(os.Environ())
+
+		cmd.Run()
+		if cmd.Success() {
+			msg = "Tests PASS: " + testNames
+			tr.log.Println("\033[32mTests PASS\033[39m")
+		} else {
+			msg = "Tests FAIL: " + testNames
+			tr.log.Println("\033[31mTests FAIL\033[39m")
+		}
 	}
 	return msg, nil
 }

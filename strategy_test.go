@@ -448,7 +448,7 @@ func TestPkgBMethodOnValue(t *testing.T) {
 	for i, tc := range cases {
 		// setup()
 		execTestHelper(t, i, tc.desc, tc.setup)
-		pkgPathsList, testsList, subTestsList, err := ssaStrategy.TestsToRun(context.Background())
+		_, pkgPathsList, testsList, subTestsList, err := ssaStrategy.TestsToRun(context.Background())
 		// teardown()
 		execTestHelper(t, i, tc.desc, tc.tearDown)
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {

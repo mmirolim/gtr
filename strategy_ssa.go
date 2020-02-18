@@ -43,6 +43,7 @@ func NewSSAStrategy(workDir string, logger *log.Logger) *SSAStrategy {
 // TODO test on different modules and Gopath version
 // TODO improve performance, TestsToRun testing takes more than 4s
 func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
+	runAll bool,
 	pkgPathsList, testsList, subTestsList []string,
 	err error) {
 	changes, err := gds.gitCmd.Diff(ctx)
@@ -176,7 +177,11 @@ func (gds *SSAStrategy) TestsToRun(ctx context.Context) (
 		})
 	}
 
-	return mapStrToSlice(pkgPaths), mapStrToSlice(testsSet), mapStrToSlice(subTests), nil
+	return true,
+		mapStrToSlice(pkgPaths),
+		mapStrToSlice(testsSet),
+		mapStrToSlice(subTests),
+		nil
 }
 
 func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[string]FileInfo, error) {

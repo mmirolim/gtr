@@ -16,9 +16,9 @@ type dummyStrategy struct {
 }
 
 func (ds *dummyStrategy) TestsToRun(ctx context.Context) (
-	pkgPaths, tests, subTests []string, err error,
+	runAll bool, pkgPaths, tests, subTests []string, err error,
 ) {
-	return ds.pkgPaths, ds.tests, ds.subtests, ds.err
+	return true, ds.pkgPaths, ds.tests, ds.subtests, ds.err
 }
 
 func TestGoTestRunnerRun(t *testing.T) {
