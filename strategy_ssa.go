@@ -128,18 +128,17 @@ func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 	case "cha":
 		graph = cha.CallGraph(program)
 	case "rta":
-		var ssaMainFuncs []*ssa.Function
-		for _, pkg := range ssautil.MainPackages(testPkgs) {
-			mainFunc := pkg.Func("main")
-			if mainFunc != nil {
-				ssaMainFuncs = append(ssaMainFuncs, mainFunc)
+		var ssaFuncs []*ssa.Function
+		for fn := range ssautil.AllFunctions(program) {
+			if fn != nil {
+				ssaFuncs = append(ssaFuncs, fn)
 			}
 		}
-		graph = rta.Analyze(ssaMainFuncs, true).CallGraph
+		graph = rta.Analyze(ssaFuncs, true).CallGraph
 	default:
 		return // unhandled analysis
 	}
-	graph.DeleteSyntheticNodes()
+	graph.DeleteSyntheticNodes() // check
 	// find nodes from changed blocks
 	changedNodes := map[*callgraph.Node]bool{}
 	for fn := range graph.Nodes {
@@ -335,7 +334,6 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 	return
 }
 
-// TODO do with analyzer api
 func getAllTestsInModule(moduleName string, graph *callgraph.Graph) (
 	allTests map[*callgraph.Node]map[string]string,
 ) {
