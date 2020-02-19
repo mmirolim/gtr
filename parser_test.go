@@ -258,13 +258,21 @@ func TestParseFlag(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			desc:   "invalid option",
+			osArgs: []string{"./binary", "-no-a-flag", "value"},
+			out:    config{},
+			err:    errors.New("invalid option -- -no-a-flag"),
+		},
 	}
 	for i, tc := range cases {
 		cfg, err := parseFlags(tc.osArgs)
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue
 		}
-
+		if err != nil {
+			continue // skip on valid errors
+		}
 		diffs := pretty.Diff(tc.out, cfg)
 		if len(diffs) > 0 {
 			t.Errorf("case [%d] %s\nunexpected result %# v", i, tc.desc, pretty.Formatter(diffs))

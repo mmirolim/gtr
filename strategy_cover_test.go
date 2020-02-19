@@ -89,8 +89,8 @@ func TestCoverStrategyTestsToRun(t *testing.T) {
 			if Sub(10, 5) != 5 {
 				t.Error("Sub unexpected result")
 			}
-		}
-		`)
+		}`)
+
 		fileAAddDouble = []byte(`package main
 
 		func add(a, b int) int {
@@ -152,6 +152,24 @@ func TestCoverStrategyTestsToRun(t *testing.T) {
 		func Sub(a, b int) int {
 			return a - b + 0
 		}`)
+		pkgATestFileUpdate = []byte(`package pkga
+
+		import (
+			"testing"
+		)
+
+		func TestDiv(t *testing.T) {
+			if Div(6, 2) != 3 {
+				t.Error("Div unexpected result")
+			}
+		}
+
+		func TestSub(t *testing.T) {
+			if Sub(10, 5) != 5 {
+				t.Error("Sub unexpected result")
+			}
+		}`)
+
 		testAddProf = []byte(`mode: set
 cover-strategy-test-run/pkga/file_a.go:3.26,5.4 1 0
 cover-strategy-test-run/pkga/file_a.go:7.26,9.4 1 0
@@ -306,8 +324,18 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 			outTests: []string{"cover-strategy-test-run.TestMul",
 				"cover-strategy-test-run/pkga.TestSub"},
 		},
-		// TODO add test with helper func in different packages
-		// TODO add test with different testing frameworks
+		{
+			desc: "Update in pkga",
+			setup: func() error {
+				return ioutil.WriteFile(
+					filepath.Join(testDir, pkgATestFileAPath),
+					pkgATestFileUpdate, 0600)
+			},
+			tearDown: func() error {
+				return gitCmdRun("commit", "-am", "commit changes") // Test
+			},
+			outTests: []string{"cover-strategy-test-run/pkga.TestDiv"},
+		},
 	}
 	coverStrategy := setup()
 	for i, tc := range cases {
