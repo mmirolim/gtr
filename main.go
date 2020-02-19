@@ -65,7 +65,7 @@ type config struct {
 	runInit           bool // run init in strategies
 	excludeFilePrefix []string
 	excludeDirs       []string
-	autoCommit        string // TODO use bool
+	autoCommit        string // TODO bool
 	argsToTestBinary  string
 }
 

@@ -53,10 +53,20 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 			return
 		}
 	}
+	moduleName := ""
+	moduleName, err = getModuleName(cs.workDir)
+	if err != nil {
+		return
+	}
 
 	if cs.firstRun && cs.runInit {
 		// run all tests for first time
-		testsList, err = findAllTestInDir(ctx, cs.workDir)
+		cs.log.Println("finding all tests...")
+		testsList, err = findAllTestInDir(ctx, moduleName, cs.workDir)
+		if err != nil {
+			cs.log.Println("Build Failed")
+			return
+		}
 		cs.firstRun = false
 		return
 	}
@@ -112,12 +122,6 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 		return
 	}
 
-	moduleName := ""
-	moduleName, err = getModuleName(cs.workDir)
-	if err != nil {
-		return
-	}
-
 	// [source_file_name][cover_file_name]*FileCoverInfo
 	fileBlocksToTest := map[string]map[string]*FileCoverInfo{}
 	var coverProfile map[string]*FileCoverInfo
@@ -150,6 +154,7 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 		}
 	}
 
+	testsDic := map[string]bool{}
 	// TODO refactor
 	// find tests which covers changed code blocks
 	for fname, info := range changedBlocks {
@@ -161,7 +166,7 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 				} else {
 					testName = fmt.Sprintf("%s.%s", filepath.Join(moduleName, info.pkgName), testName)
 				}
-				testsList = append(testsList, testName)
+				testsDic[testName] = true
 			}
 		}
 		fileName := filepath.Join(moduleName, fname)
@@ -180,16 +185,18 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 						id := strings.LastIndexByte(testName, '.')
 						dir := filepath.Dir(profile.File)
 						testName = fmt.Sprintf("%s.%s", dir, testName[id+1:])
-						testsList = append(testsList, testName)
+						testsDic[testName] = true
 					}
 				}
 			}
 		}
 	}
+	testsList = mapStrToSlice(testsDic)
 	return
 }
 
-func findAllTestInDir(ctx context.Context, dir string) ([]string, error) {
+// TODO make it faster
+func findAllTestInDir(ctx context.Context, moduleName, dir string) ([]string, error) {
 	cfg := &packages.Config{
 		Context: ctx,
 		Dir:     dir,
@@ -226,9 +233,12 @@ func findAllTestInDir(ctx context.Context, dir string) ([]string, error) {
 	}
 	var tests []string
 	packages.Visit(pkgs, func(pkg *packages.Package) bool {
+		// skip non local files
+		if !strings.HasPrefix(pkg.PkgPath, moduleName) {
+			return true
+		}
+
 		for i, file := range pkg.Syntax {
-			// skip non local files
-			// TODO check net package have more pkg.Syntax than pkg.GoFiles
 			if i >= len(pkg.GoFiles) || !strings.HasPrefix(pkg.GoFiles[i], dir) {
 				continue
 			}
@@ -236,14 +246,16 @@ func findAllTestInDir(ctx context.Context, dir string) ([]string, error) {
 			if !strings.HasSuffix(pkg.GoFiles[i], "_test.go") {
 				continue
 			}
+
 			for _, decl := range file.Decls {
 				funDecl, ok := decl.(*ast.FuncDecl)
 				if !ok {
 					continue
 				}
-				if strings.HasPrefix(funDecl.Name.Name, "Test") {
+				if funDecl.Recv == nil && strings.HasPrefix(funDecl.Name.Name, "Test") {
 					tests = append(tests, fmt.Sprintf("%s.%s",
 						pkg.PkgPath, funDecl.Name.Name))
+
 				}
 			}
 		}

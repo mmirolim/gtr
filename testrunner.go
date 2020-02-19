@@ -118,6 +118,7 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 		cmd.Run()
 	} else {
 		// run cmd for each test and skip subtests to have separation between tests
+	OUTER:
 		for pkg, pkgtests := range pkgPaths {
 			for _, tname := range pkgtests {
 				// run all tests
@@ -132,15 +133,18 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 				}
 
 				testParams = append(testParams, "-run")
-				testParams = append(testParams, tname) // test
+				testParams = append(testParams, tname+"$") // test
 				if tr.strategy.CoverageEnabled() {
-					testParams = append(testParams, "./...") // for all packages
+					// for all packages
+					testParams = append(testParams, "./...")
 				} else {
-					testParams = append(testParams, pkg) // package
+					// package
+					testParams = append(testParams, pkg)
 				}
 				if len(tr.args) > 0 {
 					testParams = append(testParams, "-args")
-					testParams = append(testParams, tr.args) // test binary args
+					// test binary args
+					testParams = append(testParams, tr.args)
 				}
 				cmd = tr.cmd(ctx, "go", testParams...)
 				tr.log.Println(">>", strings.Join(cmd.GetArgs(), " "))
@@ -149,6 +153,10 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 				cmd.SetStderr(os.Stderr)
 				cmd.SetEnv(os.Environ())
 				cmd.Run()
+				if !cmd.Success() {
+					// stop on failed test
+					break OUTER
+				}
 			}
 		}
 	}

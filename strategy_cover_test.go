@@ -329,3 +329,155 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 	}
 
 }
+
+func TestFindAllTestInDir(t *testing.T) {
+	var (
+		moduleName = "find-all.tests"
+		gomod      = []byte(`module find-all.tests
+
+		go 1.13
+		`)
+		mainFile = []byte(`package main
+
+		import (
+			"fmt"
+                        "find-all.tests/pkga"
+		)
+
+		var a, b int = 10, 20
+
+		func main() {
+			fmt.Printf("%+v\n", add(a, b))
+		}
+
+		func sub(a, b int) int {
+			return pkga.Sub(a, b)
+		}
+		`)
+		fileA = []byte(`package main
+
+		func add(a, b int) int {
+			return a + b
+		}
+
+		func mul(a, b int) int {
+			return a * b
+		}
+		`)
+		mainTestFile = []byte(`package main
+
+		import (
+			"testing"
+		)
+
+		func TestAdd(t *testing.T) {
+			if add(3, 4) != 7 {
+				t.Error("add unexpected result")
+			}
+		}
+
+		func TestMul(t *testing.T) {
+			if mul(10, 5) != 50 {
+				t.Error("mul unexpected result")
+			}
+		}
+		`)
+
+		pkgAFileA = []byte(`package pkga
+
+		func Div(a, b int) int {
+			return a / b
+		}
+
+		func Sub(a, b int) int {
+			return a - b
+		}
+		func Test(a, b int) bool {
+			return a > b
+		}
+		`)
+		pkgATestFile = []byte(`package pkga
+
+		import (
+			"testing"
+		)
+
+		func TestDiv(t *testing.T) {
+			if Div(3, 2) != 1 {
+				t.Error("Div unexpected result")
+			}
+		}
+
+		func TestSub(t *testing.T) {
+			if Sub(10, 5) != 5 {
+				t.Error("Sub unexpected result")
+			}
+		}
+                type TT struct {}
+        	func (t *TT) TestNot(a int) int {
+                        return a
+		}
+		`)
+	)
+
+	// setup
+	testDir := filepath.Join(os.TempDir(), "test_find_all_tests_in_dir")
+
+	pkgAFileAPath := filepath.Join("pkga", "file_a.go")
+	pkgATestFileAPath := filepath.Join("pkga", "file_a_test.go")
+
+	files := map[string][]byte{
+		"go.mod":  gomod,
+		"main.go": mainFile, "file_a.go": fileA, "main_test.go": mainTestFile,
+		pkgAFileAPath: pkgAFileA, pkgATestFileAPath: pkgATestFile,
+	}
+	setup := func() {
+		setupTestGitDir(t,
+			testDir, files,
+			[]string{
+				"go.mod", "main.go", "main_test.go", "file_a.go",
+				pkgAFileAPath, pkgATestFileAPath,
+			},
+		)
+	}
+	// teardown
+	defer func() {
+		if !t.Failed() {
+			// clean tmp dir on test success
+			_ = os.RemoveAll(testDir)
+		}
+	}()
+	cases := []struct {
+		desc            string
+		setup, tearDown func() error
+		outTests        []string
+		err             error
+	}{
+		{
+			desc: "Find all test which are runnable by go test",
+			outTests: []string{"find-all.tests.TestAdd",
+				"find-all.tests.TestMul",
+				"find-all.tests/pkga.TestDiv",
+				"find-all.tests/pkga.TestSub"},
+		},
+	}
+	setup()
+	for i, tc := range cases {
+		// setup()
+		execTestHelper(t, i, tc.desc, tc.setup)
+		tests, err := findAllTestInDir(context.Background(), moduleName, testDir)
+		// teardown()
+		execTestHelper(t, i, tc.desc, tc.tearDown)
+		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
+			continue
+		}
+		// TODO test packages are handled
+		sort.Strings(tc.outTests)
+		sort.Strings(tests)
+		if !reflect.DeepEqual(tc.outTests, tests) {
+			t.Errorf("case [%d] %s\nexpected Tests %+v\ngot %+v", i, tc.desc, tc.outTests, tests)
+		}
+
+	}
+
+}
