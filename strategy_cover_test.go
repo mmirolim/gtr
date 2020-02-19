@@ -238,6 +238,10 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 	}{
 		{
 			desc: "No changes in files, no cover profiles",
+			outTests: []string{"cover-strategy-test-run.TestAdd",
+				"cover-strategy-test-run.TestMul",
+				"cover-strategy-test-run/pkga.TestDiv",
+				"cover-strategy-test-run/pkga.TestSub"},
 		},
 		{
 			desc: "Add func double in file_a.go",
@@ -268,10 +272,7 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 				}
 				return gitCmdRun("commit", "-am", "changes")
 			},
-			outTests: []string{"cover-strategy-test-run.TestAdd",
-				"cover-strategy-test-run.TestMul",
-				"cover-strategy-test-run/pkga.TestDiv",
-				"cover-strategy-test-run/pkga.TestSub"},
+			outTests: nil,
 		},
 		{
 			desc: "Add test to Double",
