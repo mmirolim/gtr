@@ -11,29 +11,31 @@ import (
 var _ Strategy = (*dummyStrategy)(nil)
 
 type dummyStrategy struct {
-	tests, subtests []string
-	err             error
+	runAll, coverageEnabled bool
+	tests, subtests         []string
+	err                     error
 }
 
 func (ds *dummyStrategy) CoverageEnabled() bool {
-	return false
+	return ds.coverageEnabled
 }
 
 func (ds *dummyStrategy) TestsToRun(ctx context.Context) (
 	runAll bool, tests, subTests []string, err error,
 ) {
-	return true, ds.tests, ds.subtests, ds.err
+	return ds.runAll, ds.tests, ds.subtests, ds.err
 }
 
 func TestGoTestRunnerRun(t *testing.T) {
 	cases := []struct {
-		desc        string
-		strategyErr error
-		cmdSuccess  bool
-		tests       []string
-		subTests    []string
-		output      string
-		err         error
+		desc               string
+		strategyErr        error
+		cmdSuccess, runAll bool
+		coverageEnabled    bool
+		tests              []string
+		subTests           []string
+		output             string
+		err                error
 	}{
 		{
 			desc:       "No file changes",
@@ -42,10 +44,12 @@ func TestGoTestRunnerRun(t *testing.T) {
 			err:        nil,
 		},
 		{
-			desc:       "2 top level tests pass",
-			cmdSuccess: true,
-			tests:      []string{"module/pkga.TestZ", "module.TestC"},
-			output:     "Tests PASS: TestC$|TestZ$",
+			desc:            "2 top level tests pass",
+			cmdSuccess:      true,
+			runAll:          true,
+			coverageEnabled: true,
+			tests:           []string{"module/pkga.TestZ", "module.TestC"},
+			output:          "Tests PASS: TestC$|TestZ$",
 		},
 		{
 			desc:       "1 top level test and 2 subtests pass",
@@ -70,10 +74,13 @@ func TestGoTestRunnerRun(t *testing.T) {
 			output:     "Tests FAIL: TestZ$/(b1)",
 		},
 		{
-			desc:       "Subtests pass",
-			cmdSuccess: true,
-			subTests:   []string{"group"},
-			output:     "Tests PASS: /(group)",
+			desc:            "Subtests on runAll false",
+			cmdSuccess:      true,
+			runAll:          false,
+			coverageEnabled: true,
+			tests:           []string{"module.TestZ"},
+			subTests:        []string{"group"},
+			output:          "Tests PASS: TestZ$/(group)",
 		},
 	}
 	logger := log.New(os.Stdout, "TestGoTestRunnerRun:", log.Ltime)
@@ -82,6 +89,8 @@ func TestGoTestRunnerRun(t *testing.T) {
 		ds.err = tc.strategyErr
 		ds.tests = tc.tests
 		ds.subtests = tc.subTests
+		ds.runAll = tc.runAll
+		ds.coverageEnabled = tc.coverageEnabled
 		mockCmd := NewMockCommand(nil, tc.cmdSuccess)
 		runner := NewGoTestRunner(&ds, mockCmd.New, "", logger)
 		out, err := runner.Run(context.TODO())
