@@ -61,7 +61,7 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 
 	if cs.firstRun && cs.runInit {
 		// run all tests for first time
-		cs.log.Println("finding all tests...")
+		cs.log.Println("initialize: run all tests\nfinding all tests...")
 		testsList, err = findAllTestInDir(ctx, moduleName, cs.workDir)
 		if err != nil {
 			cs.log.Println("Build Failed")
@@ -195,16 +195,14 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 	return
 }
 
-// TODO make it faster
+// findAllTestInDir returns all Test names in module
 func findAllTestInDir(ctx context.Context, moduleName, dir string) ([]string, error) {
 	cfg := &packages.Config{
 		Context: ctx,
 		Dir:     dir,
 		Mode: packages.NeedName |
 			packages.NeedFiles |
-			packages.NeedSyntax |
-			packages.NeedImports |
-			packages.NeedDeps,
+			packages.NeedSyntax,
 		Tests: true,
 	}
 	var err error

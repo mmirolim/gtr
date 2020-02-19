@@ -329,6 +329,7 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 			}
 		}
 	}
+	// create program
 	prog, allPkgs = ssautil.Packages(pkgs, ssa.NaiveForm|ssa.SanityCheckFunctions)
 	prog.Build()
 	return
