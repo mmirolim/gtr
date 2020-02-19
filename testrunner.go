@@ -133,7 +133,11 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 
 				testParams = append(testParams, "-run")
 				testParams = append(testParams, tname) // test
-				testParams = append(testParams, pkg)   // package
+				if tr.strategy.CoverageEnabled() {
+					testParams = append(testParams, "./...") // for all packages
+				} else {
+					testParams = append(testParams, pkg) // package
+				}
 				if len(tr.args) > 0 {
 					testParams = append(testParams, "-args")
 					testParams = append(testParams, tr.args) // test binary args
