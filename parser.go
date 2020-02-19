@@ -291,13 +291,21 @@ func parseFlags(args []string) (config, error) {
 		return config{}, errors.New(flagUsage())
 	}
 	cfg := newConfig()
+	var flagName, nextArg string
 LOOP:
 	for i := 0; i < len(args); i++ {
-		if i+1 >= len(args) {
-			return config{}, fmt.Errorf("%s value missing", args[i])
+		eqID := strings.IndexByte(args[i], '=')
+		if eqID >= 0 {
+			flagName, nextArg = args[i][:eqID], args[i][eqID+1:]
+		} else {
+			if i+1 >= len(args) {
+				return config{}, fmt.Errorf("%s value missing", args[i])
+			}
+			flagName, nextArg = args[i], args[i+1]
+			i++
 		}
-		nextArg := args[i+1]
-		switch args[i] {
+		nextArg = strings.Trim(nextArg, "\"")
+		switch flagName {
 		case "-C":
 			cfg.workDir = nextArg
 		case "-strategy":
@@ -329,13 +337,11 @@ LOOP:
 		case "-auto-commit":
 			cfg.autoCommit = nextArg
 		case "-args":
-			cfg.argsToTestBinary = strings.Join(args[i+1:], " ")
+			cfg.argsToTestBinary = strings.Join(args[i:], " ")
 			break LOOP
 		default:
-			return cfg, fmt.Errorf("invalid option -- %s", args[i])
+			return cfg, fmt.Errorf("invalid option -- %s", flagName)
 		}
-
-		i++
 	}
 
 	return cfg, nil

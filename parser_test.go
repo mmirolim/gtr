@@ -242,6 +242,22 @@ func TestParseFlag(t *testing.T) {
 			out:    config{},
 			err:    errors.New(flagUsage()),
 		},
+		{
+			desc:   "test flag setting",
+			osArgs: []string{"./binary", "-strategy=\"coverage\"", "-analysis=cha"},
+			out: config{
+				workDir:           ".",
+				delay:             1000,
+				strategy:          "coverage",
+				runInit:           true,
+				analysis:          "cha",
+				excludeFilePrefix: []string{"#"},
+				excludeDirs:       []string{"vendor", "node_modules"},
+				autoCommit:        "",
+				argsToTestBinary:  "",
+			},
+			err: nil,
+		},
 	}
 	for i, tc := range cases {
 		cfg, err := parseFlags(tc.osArgs)
