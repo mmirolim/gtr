@@ -101,17 +101,23 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 		return
 	}
 	// load all coverprofiles TODO load only changed use ts
-	allProfile := map[string][]byte{}
 	allFiles, err := dir.Readdirnames(0)
 	if err != nil {
 		return
 	}
-
+	moduleName := ""
+	moduleName, err = getModuleName(cs.workDir)
+	if err != nil {
+		return
+	}
+	// [source_file_name][cover_file_name]*FileCoverInfo
 	fileBlocksToTest := map[string]map[string]*FileCoverInfo{}
-	// parse files
 	var coverProfile map[string]*FileCoverInfo
+	// parse files
 	for _, name := range allFiles {
-
+		if !strings.HasPrefix(name, moduleName) {
+			continue // skip other files
+		}
 		var data []byte
 		data, err = ioutil.ReadFile(filepath.Join(profileDir, name))
 		if err != nil {
@@ -132,15 +138,10 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 			testToFileCover[name] = coverInfo
 			fileBlocksToTest[fname] = testToFileCover
 		}
-		allProfile[name] = data
-	}
-	moduleName := ""
-	moduleName, err = getModuleName(cs.workDir)
-	if err != nil {
-		return
 	}
 
 	// TODO refactor
+	// find tests which covers changed code blocks
 	for fname, info := range changedBlocks {
 		for _, block := range info.blocks {
 			if block.typ&BlockFunc > 0 && strings.HasPrefix(block.name, "Test") {
@@ -174,8 +175,6 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 			}
 		}
 	}
-	fmt.Printf("TestsToRun %+v\n", testsList) // output for debug
-
 	return
 }
 
