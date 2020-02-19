@@ -335,7 +335,10 @@ LOOP:
 		case "-exclude-dirs":
 			cfg.excludeDirs = splitStr(nextArg, ",")
 		case "-auto-commit":
-			cfg.autoCommit = nextArg
+			cfg.autoCommit, err = strconv.ParseBool(nextArg)
+			if err != nil {
+				return config{}, fmt.Errorf("-auto-commit invalid value %v", nextArg)
+			}
 		case "-args":
 			cfg.argsToTestBinary = strings.Join(args[i:], " ")
 			break LOOP

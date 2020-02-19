@@ -29,7 +29,7 @@ func main() {
 		logger,
 	)
 	tasks := []Task{testRunner, notifier}
-	if len(cfg.autoCommit) > 0 {
+	if cfg.autoCommit {
 		autoCommitTask := NewTask("AutoCommit",
 			CommitChanges(cfg.workDir, NewOsCommand),
 			logger)
@@ -65,7 +65,7 @@ type config struct {
 	runInit           bool // run init in strategies
 	excludeFilePrefix []string
 	excludeDirs       []string
-	autoCommit        string // TODO bool
+	autoCommit        bool
 	argsToTestBinary  string
 }
 
@@ -74,15 +74,15 @@ func flagUsage() string {
 Usage of gtr:
   -C string
         directory to watch (default ".")
-  -strategy
+  -strategy string
         strategy analysis or coverage (default analysis)
-  -analysis
+  -analysis string
         source code analysis to use pointer, static, rta, cha (default pointer)
-  -run-init
+  -run-init bool
         runs init steps like on first run get coverage for all tests on coverage strategy (default true)
   -args string
     	args to the test binary
-  -auto-commit string
+  -auto-commit bool
     	auto commit on tests pass (default false)
   -delay int
     	delay in Milliseconds (default 1000)
@@ -102,7 +102,7 @@ func newConfig() config {
 		analysis:          "pointer",
 		excludeFilePrefix: []string{"#"},
 		excludeDirs:       []string{"vendor", "node_modules"},
-		autoCommit:        "",
+		autoCommit:        false,
 		argsToTestBinary:  "",
 	}
 }
