@@ -371,7 +371,8 @@ func TestSSAStrategyTestsToRun(t *testing.T) {
 				pkgAFilePath, pkgBFilePath, pkgATestFilePath,
 			},
 		)
-		return NewSSAStrategy(testDir, logger)
+		// TODO test for different analysis types
+		return NewSSAStrategy("pointer", testDir, logger)
 	}
 
 	// teardown

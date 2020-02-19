@@ -14,10 +14,16 @@ func main() {
 		os.Exit(1)
 	}
 	logger := log.New(os.Stdout, "gtr: ", 0)
-	ssaStrategy := NewSSAStrategy(cfg.workDir, logger)
+	var strategy Strategy
+	if cfg.strategy == "coverage" {
+		strategy = NewCoverStrategy(cfg.workDir, logger)
+	} else {
+		strategy = NewSSAStrategy(cfg.analysis, cfg.workDir, logger)
+	}
+
 	notifier := NewDesktopNotificator(true, 2000)
 	testRunner := NewGoTestRunner(
-		ssaStrategy,
+		strategy,
 		NewOsCommand,
 		cfg.argsToTestBinary,
 		logger,
@@ -54,6 +60,8 @@ func main() {
 type config struct {
 	workDir           string
 	delay             int
+	strategy          string
+	analysis          string
 	excludeFilePrefix []string
 	excludeDirs       []string
 	autoCommit        string
@@ -65,6 +73,10 @@ func flagUsage() string {
 Usage of gtr:
   -C string
         directory to watch (default ".")
+  -strategy
+        strategy analysis or coverage (default analysis)
+  -analysis
+        source code analysis to use pointer, static, rta, cha (default pointer)
   -args string
     	args to the test binary
   -auto-commit string
@@ -82,6 +94,8 @@ func newConfig() config {
 	return config{
 		workDir:           ".",
 		delay:             1000,
+		strategy:          "analysis",
+		analysis:          "pointer",
 		excludeFilePrefix: []string{"#"},
 		excludeDirs:       []string{"vendor", "node_modules"},
 		autoCommit:        "",

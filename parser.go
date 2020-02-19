@@ -300,6 +300,18 @@ LOOP:
 		switch args[i] {
 		case "-C":
 			cfg.workDir = nextArg
+		case "-strategy":
+			if isValidStrategy(nextArg) {
+				cfg.strategy = nextArg
+			} else {
+				return config{}, fmt.Errorf("-strategy invalid value %v", nextArg)
+			}
+		case "-analysis":
+			if isValidAnalysis(nextArg) {
+				cfg.analysis = nextArg
+			} else {
+				return config{}, fmt.Errorf("-analysis invalid value %v", nextArg)
+			}
 		case "-delay":
 			cfg.delay, err = strconv.Atoi(nextArg)
 			if err != nil {
@@ -322,6 +334,23 @@ LOOP:
 	}
 
 	return cfg, nil
+}
+
+func isValidAnalysis(analysis string) bool {
+	if analysis == "pointer" ||
+		analysis == "cha" ||
+		analysis == "rta" ||
+		analysis == "static" {
+		return true
+	}
+	return false
+}
+
+func isValidStrategy(strategy string) bool {
+	if strategy == "coverage" || strategy == "analysis" {
+		return true
+	}
+	return false
 }
 
 // getModuleName returns module name

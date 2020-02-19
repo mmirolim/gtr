@@ -210,6 +210,8 @@ func TestParseFlag(t *testing.T) {
 				"-tf1", "10", "-tf2", "20,30"},
 			out: config{
 				workDir:           "/home/user/go",
+				strategy:          "analysis",
+				analysis:          "pointer",
 				delay:             10,
 				excludeFilePrefix: []string{"h", "v", "#"},
 				excludeDirs:       []string{"vendor", "node_modules"},

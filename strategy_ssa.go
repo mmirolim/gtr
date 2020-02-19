@@ -10,6 +10,9 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/callgraph"
+	"golang.org/x/tools/go/callgraph/cha"
+	"golang.org/x/tools/go/callgraph/rta"
+	"golang.org/x/tools/go/callgraph/static"
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
@@ -24,17 +27,19 @@ var _ Strategy = (*SSAStrategy)(nil)
 // SSAStrategy finds test to run from git diffs
 // and pointer analysis
 type SSAStrategy struct {
-	workDir string
-	gitCmd  *GitCMD
-	log     *log.Logger
+	analysis string
+	workDir  string
+	gitCmd   *GitCMD
+	log      *log.Logger
 }
 
 // NewSSAStrategy returns strategy
-func NewSSAStrategy(workDir string, logger *log.Logger) *SSAStrategy {
+func NewSSAStrategy(analysis, workDir string, logger *log.Logger) *SSAStrategy {
 	return &SSAStrategy{
-		workDir: workDir,
-		gitCmd:  NewGitCMD(workDir),
-		log:     logger,
+		analysis: analysis,
+		workDir:  workDir,
+		gitCmd:   NewGitCMD(workDir),
+		log:      logger,
 	}
 }
 
@@ -91,7 +96,7 @@ func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 		return
 	}
 
-	moduleName, filePathToPkg, allPkgs, analyzeErr := analyzeGoCode(ctx, ss.workDir)
+	moduleName, program, filePathToPkg, allPkgs, analyzeErr := analyzeGoCode(ctx, ss.workDir)
 	if analyzeErr != nil {
 		err = ErrBuildFailed
 		return
@@ -108,12 +113,32 @@ func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 		Mains:          ssautil.MainPackages(testPkgs),
 		BuildCallGraph: true,
 	}
-	var result *pointer.Result
-	result, err = pointer.Analyze(config)
-	if err != nil {
-		return
+	var graph *callgraph.Graph
+	// configure analysis
+	switch ss.analysis {
+	case "pointer":
+		result, aerr := pointer.Analyze(config)
+		if aerr != nil {
+			err = aerr
+			return
+		}
+		graph = result.CallGraph
+	case "static":
+		graph = static.CallGraph(program)
+	case "cha":
+		graph = cha.CallGraph(program)
+	case "rta":
+		var ssaMainFuncs []*ssa.Function
+		for _, pkg := range ssautil.MainPackages(testPkgs) {
+			mainFunc := pkg.Func("main")
+			if mainFunc != nil {
+				ssaMainFuncs = append(ssaMainFuncs, mainFunc)
+			}
+		}
+		graph = rta.Analyze(ssaMainFuncs, true).CallGraph
+	default:
+		return // unhandled analysis
 	}
-	graph := result.CallGraph
 	graph.DeleteSyntheticNodes()
 	// find nodes from changed blocks
 	changedNodes := map[*callgraph.Node]bool{}
@@ -238,6 +263,7 @@ func changesToFileBlocks(changes []Change, fileInfos map[string]FileInfo) (map[s
 
 func analyzeGoCode(ctx context.Context, workDir string) (
 	moduleName string,
+	prog *ssa.Program,
 	filePathToPkg map[string]string,
 	allPkgs []*ssa.Package,
 	err error,
@@ -303,7 +329,6 @@ func analyzeGoCode(ctx context.Context, workDir string) (
 			}
 		}
 	}
-	var prog *ssa.Program
 	prog, allPkgs = ssautil.Packages(pkgs, ssa.NaiveForm|ssa.SanityCheckFunctions)
 	prog.Build()
 	return
