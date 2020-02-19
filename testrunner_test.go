@@ -45,7 +45,7 @@ func TestGoTestRunnerRun(t *testing.T) {
 			desc:       "2 top level tests pass",
 			cmdSuccess: true,
 			tests:      []string{"module/pkga.TestZ", "module.TestC"},
-			output:     "Tests PASS: TestZ$|TestC$",
+			output:     "Tests PASS: TestC$|TestZ$",
 		},
 		{
 			desc:       "1 top level test and 2 subtests pass",
@@ -105,9 +105,9 @@ func TestGoTestRunnerJoinTestAndSubtest(t *testing.T) {
 		output   string
 	}{
 		{nil, nil, ""},
-		{[]string{"TestZ", "TestC"}, nil, "TestZ$|TestC$"},
+		{[]string{"TestZ", "TestC"}, nil, "TestC$|TestZ$"},
 		{nil, []string{"b 1", "z 2"}, "/(b_1|z_2)"},
-		{[]string{"TestZ", "TestC", "TestB"}, []string{"b 1", "z2"}, "TestZ$|TestC$|TestB$/(b_1|z2)"},
+		{[]string{"TestZ", "TestC", "TestB"}, []string{"b 1", "z2"}, "TestB$|TestC$|TestZ$/(b_1|z2)"},
 	}
 	for i, tc := range cases {
 		out := runner.joinTestAndSubtest(tc.tests, tc.subTests)

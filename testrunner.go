@@ -64,6 +64,7 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 	if len(tests) == 0 && len(subTests) == 0 {
 		return "No test found to run", nil
 	}
+
 	var listArg []string
 	pkgPaths := map[string][]string{}
 	for _, tname := range tests {
@@ -160,6 +161,8 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 
 // joinTestAndSubtest joins and format tests according to go test -run arg format
 func (tr *GoTestRunner) joinTestAndSubtest(tests, subTests []string) string {
+	sort.Strings(tests)
+	sort.Strings(subTests)
 	out := strings.Join(tests, "$|")
 	if len(out) > 0 {
 		out += "$"
