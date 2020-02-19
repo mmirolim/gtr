@@ -18,14 +18,16 @@ var _ Strategy = (*CoverStrategy)(nil)
 
 type CoverStrategy struct {
 	firstRun bool
+	runInit  bool
 	workDir  string
 	gitCmd   *GitCMD
 	log      *log.Logger
 }
 
-func NewCoverStrategy(workDir string, logger *log.Logger) *CoverStrategy {
+func NewCoverStrategy(runInit bool, workDir string, logger *log.Logger) *CoverStrategy {
 	return &CoverStrategy{
 		firstRun: true,
+		runInit:  runInit,
 		workDir:  workDir,
 		gitCmd:   NewGitCMD(workDir),
 		log:      logger,
@@ -52,7 +54,7 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 		}
 	}
 
-	if cs.firstRun {
+	if cs.firstRun && cs.runInit {
 		// run all tests for first time
 		testsList, err = findAllTestInDir(ctx, cs.workDir)
 		cs.firstRun = false

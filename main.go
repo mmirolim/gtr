@@ -16,7 +16,7 @@ func main() {
 	logger := log.New(os.Stdout, "gtr: ", 0)
 	var strategy Strategy
 	if cfg.strategy == "coverage" {
-		strategy = NewCoverStrategy(cfg.workDir, logger)
+		strategy = NewCoverStrategy(cfg.runInit, cfg.workDir, logger)
 	} else {
 		strategy = NewSSAStrategy(cfg.analysis, cfg.workDir, logger)
 	}
@@ -62,6 +62,7 @@ type config struct {
 	delay             int
 	strategy          string
 	analysis          string
+	runInit           bool // run init in strategies
 	excludeFilePrefix []string
 	excludeDirs       []string
 	autoCommit        string
@@ -77,6 +78,8 @@ Usage of gtr:
         strategy analysis or coverage (default analysis)
   -analysis
         source code analysis to use pointer, static, rta, cha (default pointer)
+  -run-init
+        runs init steps like on first run get coverage for all tests on coverage strategy (default true)
   -args string
     	args to the test binary
   -auto-commit string
@@ -95,6 +98,7 @@ func newConfig() config {
 		workDir:           ".",
 		delay:             1000,
 		strategy:          "analysis",
+		runInit:           true,
 		analysis:          "pointer",
 		excludeFilePrefix: []string{"#"},
 		excludeDirs:       []string{"vendor", "node_modules"},

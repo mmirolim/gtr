@@ -312,6 +312,11 @@ LOOP:
 			} else {
 				return config{}, fmt.Errorf("-analysis invalid value %v", nextArg)
 			}
+		case "-run-init":
+			cfg.runInit, err = strconv.ParseBool(nextArg)
+			if err != nil {
+				return config{}, fmt.Errorf("-run-init invalid value %v", nextArg)
+			}
 		case "-delay":
 			cfg.delay, err = strconv.Atoi(nextArg)
 			if err != nil {

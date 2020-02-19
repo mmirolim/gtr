@@ -221,7 +221,8 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 				pkgAFileAPath, pkgATestFileAPath,
 			},
 		)
-		return NewCoverStrategy(testDir, logger)
+		// TODO test with different configurations
+		return NewCoverStrategy(true, testDir, logger)
 	}
 	// teardown
 	defer func() {

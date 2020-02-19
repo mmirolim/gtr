@@ -205,13 +205,16 @@ func TestParseFlag(t *testing.T) {
 		},
 		{
 			desc: "All flags are correctly defined",
-			osArgs: []string{"./binary", "-C", "/home/user/go", "-delay", "10", "-exclude-file-prefix", "h,v,#",
-				"-exclude-dirs", "vendor,node_modules", "-auto-commit", "t", "-args",
+			osArgs: []string{
+				"./binary", "-C", "/home/user/go", "-strategy", "coverage",
+				"-analysis", "cha", "-delay", "10", "-exclude-file-prefix", "h,v,#",
+				"-exclude-dirs", "vendor,node_modules", "-auto-commit", "t", "-run-init", "false", "-args",
 				"-tf1", "10", "-tf2", "20,30"},
 			out: config{
 				workDir:           "/home/user/go",
-				strategy:          "analysis",
-				analysis:          "pointer",
+				strategy:          "coverage",
+				analysis:          "cha",
+				runInit:           false,
 				delay:             10,
 				excludeFilePrefix: []string{"h", "v", "#"},
 				excludeDirs:       []string{"vendor", "node_modules"},
