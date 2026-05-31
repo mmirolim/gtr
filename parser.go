@@ -8,15 +8,12 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/kr/pretty"
 )
 
 // Change of file lines
@@ -207,7 +204,7 @@ func getFileInfo(fname string, src interface{}) (FileInfo, error) {
 			case *ast.ValueSpec:
 				// TODO handle variable decl
 			default:
-				fmt.Printf("[WARN] unhandled GenDecl Spec case %# v\n", pretty.Formatter(spec)) // output for debug
+				fmt.Printf("[WARN] unhandled GenDecl Spec case %T %+v\n", spec, spec) // output for debug
 
 			}
 		}
@@ -351,7 +348,7 @@ LOOP:
 }
 
 func isValidAnalysis(analysis string) bool {
-	if analysis == "pointer" ||
+	if analysis == "vta" ||
 		analysis == "cha" ||
 		analysis == "rta" ||
 		analysis == "static" {
@@ -370,7 +367,7 @@ func isValidStrategy(strategy string) bool {
 // getModuleName returns module name
 // in gived workDir
 func getModuleName(workDir string) (string, error) {
-	data, err := ioutil.ReadFile(filepath.Join(workDir, "go.mod"))
+	data, err := os.ReadFile(filepath.Join(workDir, "go.mod"))
 	if err != nil {
 		// get from GOPATH
 		gopath := os.Getenv("GOPATH")

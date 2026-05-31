@@ -77,7 +77,7 @@ Usage of gtr:
   -strategy string
         strategy analysis or coverage (default analysis)
   -analysis string
-        source code analysis to use pointer, static, rta, cha (default pointer)
+        source code analysis to use vta, static, rta, cha (default vta)
   -run-init bool
         runs init steps like on first run get coverage for all tests on coverage strategy (default true)
   -args string
@@ -99,7 +99,7 @@ func newConfig() config {
 		delay:             1000,
 		strategy:          "analysis",
 		runInit:           true,
-		analysis:          "pointer",
+		analysis:          "vta",
 		excludeFilePrefix: []string{"#"},
 		excludeDirs:       []string{"vendor", "node_modules"},
 		autoCommit:        false,

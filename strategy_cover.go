@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -132,7 +131,7 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 			continue // skip other files
 		}
 		var data []byte
-		data, err = ioutil.ReadFile(filepath.Join(profileDir, name))
+		data, err = os.ReadFile(filepath.Join(profileDir, name))
 		if err != nil {
 			return
 		}

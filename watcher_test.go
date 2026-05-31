@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -95,40 +94,40 @@ func TestWatcherSkipChange(t *testing.T) {
 
 		{
 			desc:   "new file Create event",
-			event:  fsnotify.Event{"file.go", fsnotify.Create},
+			event:  fsnotify.Event{Name: "file.go", Op: fsnotify.Create},
 			expect: false,
 		},
 		{
 			desc:   "file.go Rename event",
-			event:  fsnotify.Event{"file.go", fsnotify.Rename},
+			event:  fsnotify.Event{Name: "file.go", Op: fsnotify.Rename},
 			expect: true,
 		},
 		{
 			desc:   "file.go Remove event",
-			event:  fsnotify.Event{"file.go", fsnotify.Remove},
+			event:  fsnotify.Event{Name: "file.go", Op: fsnotify.Remove},
 			expect: true,
 		},
 		{
 			desc:   "file.go Write event",
-			event:  fsnotify.Event{"file.go", fsnotify.Write},
+			event:  fsnotify.Event{Name: "file.go", Op: fsnotify.Write},
 			expect: false,
 		},
 		{
 			desc:        "file Write event, updated < delay",
-			event:       fsnotify.Event{"file.go", fsnotify.Write},
+			event:       fsnotify.Event{Name: "file.go", Op: fsnotify.Write},
 			lastModTime: time.Now().Add(-100 * time.Millisecond),
 			lastModFile: "file.go",
 			expect:      true,
 		},
 		{
 			desc:   "file.js file Write event",
-			event:  fsnotify.Event{"file.js", fsnotify.Write},
+			event:  fsnotify.Event{Name: "file.js", Op: fsnotify.Write},
 			expect: true,
 		},
 		{
 			desc:                "prefixfile.go skipped by prefix Write event",
 			excludeFilePrefixes: []string{"prefix", "otherprefix"},
-			event:               fsnotify.Event{"prefixfile.go", fsnotify.Write},
+			event:               fsnotify.Event{Name: "prefixfile.go", Op: fsnotify.Write},
 			lastModTime:         time.Time{},
 			lastModFile:         "file.go",
 			expect:              true,
@@ -192,7 +191,7 @@ func TestWatcherRunTasks(t *testing.T) {
 				_ = watcher.addDirs()
 				// run tasks
 				go watcher.runTasks()
-				return ioutil.WriteFile(filepath.Join(testDir, "file.go"), nil, 0600)
+				return os.WriteFile(filepath.Join(testDir, "file.go"), nil, 0600)
 			},
 			tearDown: func() error {
 				taskErr = nil
@@ -226,7 +225,7 @@ func TestWatcherRunTasks(t *testing.T) {
 				_ = watcher.addDirs()
 				// run tasks
 				go watcher.runTasks()
-				return ioutil.WriteFile(filepath.Join(testDir, "file.go"), nil, 0600)
+				return os.WriteFile(filepath.Join(testDir, "file.go"), nil, 0600)
 			},
 			tearDown: func() error {
 				taskErr = nil
@@ -246,7 +245,7 @@ func TestWatcherRunTasks(t *testing.T) {
 				_ = watcher.addDirs()
 				// run tasks
 				go watcher.runTasks()
-				return ioutil.WriteFile(filepath.Join(testDir, "file.js"), nil, 0600)
+				return os.WriteFile(filepath.Join(testDir, "file.js"), nil, 0600)
 			},
 			tearDown: func() error {
 				taskErr = nil
@@ -277,7 +276,7 @@ func TestWatcherRunTasks(t *testing.T) {
 				os.Mkdir(newDir, 0700)
 				// delay for a watcher to add newdir
 				time.Sleep(time.Millisecond)
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(newDir, "file_in_new_dir.go"), nil, 0600)
 			},
 			tearDown: func() error {
@@ -301,7 +300,7 @@ func TestWatcherRunTasks(t *testing.T) {
 				// remove new directory
 				time.Sleep(time.Millisecond)
 				os.RemoveAll(filepath.Join(testDir, "newdir"))
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, "file_update.go"), nil, 0600)
 			},
 			tearDown: func() error {

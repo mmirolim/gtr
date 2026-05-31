@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -10,8 +9,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
-	"github.com/kr/pretty"
 )
 
 func TestChangesToFileBlocks(t *testing.T) {
@@ -42,7 +39,7 @@ func TestChangesToFileBlocks(t *testing.T) {
 		output    map[string]FileInfo
 		err       error
 	}{
-		{desc: "no file changes"},
+		{desc: "no file changes", output: map[string]FileInfo{}},
 		{
 			desc: "file f1, 1 block changed",
 			changes: []Change{
@@ -83,9 +80,8 @@ func TestChangesToFileBlocks(t *testing.T) {
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue
 		}
-		diff := pretty.Diff(tc.output, out)
-		if len(diff) > 0 {
-			t.Errorf("case [%d]\ndiff %+v", i, diff)
+		if !reflect.DeepEqual(tc.output, out) {
+			t.Errorf("case [%d]\nexpected %+v\ngot %+v", i, tc.output, out)
 		}
 	}
 
@@ -372,7 +368,7 @@ func TestSSAStrategyTestsToRun(t *testing.T) {
 			},
 		)
 		// TODO test for different analysis types
-		return NewSSAStrategy("pointer", testDir, logger)
+		return NewSSAStrategy("cha", testDir, logger)
 	}
 
 	// teardown
@@ -392,7 +388,7 @@ func TestSSAStrategyTestsToRun(t *testing.T) {
 		{
 			desc: "Update file_a.go file",
 			setup: func() error {
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, "file_a.go"), fileAUpdateAdd, 0600)
 			},
 			tearDown: func() error {
@@ -406,41 +402,43 @@ func TestSSAStrategyTestsToRun(t *testing.T) {
 		{
 			desc: "Update file_b.go file max func",
 			setup: func() error {
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, "file_b.go"), fileBUpdateMax, 0600)
 			},
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit file_b.go changes") // Test
 			},
 			outTests:    []string{"git-diff-strategy-test-run.TestMinMaxAdd"},
-			outSubTests: []string{"group test 1", "max"},
+			outSubTests: []string{"group test 1", "max", "min"},
 		},
 		{
 			desc: "Check named imports",
 			setup: func() error {
 
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, pkgBFilePath), pkgBFileUpdateF, 0600)
 			},
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit changes")
 			},
-			outTests: []string{"git-diff-strategy-test-run/pkga.TestPkgAFunc",
+			outTests: []string{"git-diff-strategy-test-run.TestMinMaxAdd",
+				"git-diff-strategy-test-run/pkga.TestPkgAFunc",
 				"git-diff-strategy-test-run/pkga.TestPkgBMethodOnValue"},
-			outSubTests: nil,
+			outSubTests: []string{"min"},
 		},
 		{
 			desc: "Update pkgb.A type methods",
 			setup: func() error {
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, pkgBFilePath),
 					pkgBFileUpdateMethods, 0600)
 			},
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "commit changes")
 			},
-			outTests:    []string{"git-diff-strategy-test-run/pkga.TestPkgBMethodOnValue"},
-			outSubTests: nil,
+			outTests:    []string{"git-diff-strategy-test-run.TestMinMaxAdd",
+				"git-diff-strategy-test-run/pkga.TestPkgBMethodOnValue"},
+			outSubTests: []string{"min"},
 		},
 		// TODO add test with helper func in different packages
 		// TODO add test with different testing frameworks
@@ -491,7 +489,7 @@ func setupTestGitDir(t *testing.T, testDir string, files map[string][]byte, file
 				t.Fatalf("setup MkdirAll error %s", err)
 			}
 		}
-		err = ioutil.WriteFile(filepath.Join(testDir, fname), fdata, 0600)
+		err = os.WriteFile(filepath.Join(testDir, fname), fdata, 0600)
 		if err != nil {
 			t.Fatalf("setup write error %v", err)
 		}

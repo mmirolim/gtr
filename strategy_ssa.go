@@ -14,7 +14,7 @@ import (
 	"golang.org/x/tools/go/callgraph/rta"
 	"golang.org/x/tools/go/callgraph/static"
 	"golang.org/x/tools/go/packages"
-	"golang.org/x/tools/go/pointer"
+	"golang.org/x/tools/go/callgraph/vta"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )
@@ -109,20 +109,13 @@ func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 			testPkgs = append(testPkgs, pkg)
 		}
 	}
-	config := &pointer.Config{
-		Mains:          ssautil.MainPackages(testPkgs),
-		BuildCallGraph: true,
-	}
 	var graph *callgraph.Graph
 	// configure analysis
 	switch ss.analysis {
-	case "pointer":
-		result, aerr := pointer.Analyze(config)
-		if aerr != nil {
-			err = aerr
-			return
-		}
-		graph = result.CallGraph
+	case "vta":
+		// VTA refines a CHA call graph using variable type analysis.
+		// Passing nil lets VTA build an efficient CHA internally.
+		graph = vta.CallGraph(ssautil.AllFunctions(program), nil)
 	case "static":
 		graph = static.CallGraph(program)
 	case "cha":
@@ -138,7 +131,9 @@ func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 	default:
 		return // unhandled analysis
 	}
-	graph.DeleteSyntheticNodes() // check
+	if graph.Root != nil {
+		graph.DeleteSyntheticNodes()
+	}
 	// find nodes from changed blocks
 	changedNodes := map[*callgraph.Node]bool{}
 	for fn := range graph.Nodes {

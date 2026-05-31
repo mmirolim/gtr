@@ -5,13 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
-
-	"github.com/kr/pretty"
 )
 
 func TestChangesFromGitDiff(t *testing.T) {
@@ -114,9 +111,8 @@ index 6e2c328..0000000
 			continue
 		}
 
-		diffs := pretty.Diff(tc.output, changes)
-		if len(diffs) > 0 {
-			t.Errorf("%# v", pretty.Formatter(diffs))
+		if !reflect.DeepEqual(tc.output, changes) {
+			t.Errorf("case [%d]\nexpected %+v\ngot %+v", i, tc.output, changes)
 		}
 
 	}
@@ -182,10 +178,9 @@ func TestGetFileBlocks(t *testing.T) {
 			continue
 		}
 
-		diffs := pretty.Diff(tc.output, fileInfo)
-		if len(diffs) > 0 {
-			fmt.Printf("%# v\n", pretty.Formatter(fileInfo)) // output for debug
-			t.Errorf("%# v", pretty.Formatter(diffs))
+		if !reflect.DeepEqual(tc.output, fileInfo) {
+			fmt.Printf("[DEBUG] fileInfo: %+v\n", fileInfo)
+			t.Errorf("case [%d]\nexpected %+v\ngot %+v", i, tc.output, fileInfo)
 		}
 	}
 }
@@ -273,9 +268,8 @@ func TestParseFlag(t *testing.T) {
 		if err != nil {
 			continue // skip on valid errors
 		}
-		diffs := pretty.Diff(tc.out, cfg)
-		if len(diffs) > 0 {
-			t.Errorf("case [%d] %s\nunexpected result %# v", i, tc.desc, pretty.Formatter(diffs))
+		if !reflect.DeepEqual(tc.out, cfg) {
+			t.Errorf("case [%d] %s\nexpected %+v\ngot %+v", i, tc.desc, tc.out, cfg)
 		}
 	}
 
@@ -289,10 +283,14 @@ go 1.13
 require (
 	golang.org/x/tools v0.0.0-20190729092621-ff9f1409240a
 )`)
-	// setup
-	testDir := filepath.Join(os.TempDir(), "test-get-module-name")
+	// setup - resolve symlinks for macOS (/tmp -> /private/var/folders/...)
+	tmpDir, err := filepath.EvalSymlinks(os.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	testDir := filepath.Join(tmpDir, "test-get-module-name")
 	workDir := filepath.Join(testDir, "src", "rockcom", "solid")
-	err := os.MkdirAll(workDir, 0700)
+	err = os.MkdirAll(workDir, 0700)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +332,7 @@ require (
 			gofile: gomod,
 			module: "rock.com/solid",
 			setup: func() error {
-				return ioutil.WriteFile(filepath.Join(workDir, "go.mod"), gomod, 0600)
+				return os.WriteFile(filepath.Join(workDir, "go.mod"), gomod, 0600)
 			},
 			teardown: func() error {
 				return os.Remove(filepath.Join(workDir, "go.mod"))
@@ -419,11 +417,8 @@ mmirolim/gtr/watcher.go:67.31,71.16 3 1
 			continue
 		}
 
-		diffs := pretty.Diff(tc.infoMap, infos)
-		if len(diffs) > 0 {
-			t.Errorf("case [%d] %s\nexpected %+v, got %+v", i, tc.desc, tc.infoMap, infos)
-			fmt.Printf("Diffs %# v\n", pretty.Formatter(diffs)) // output for debug
-
+		if !reflect.DeepEqual(tc.infoMap, infos) {
+			t.Errorf("case [%d] %s\nexpected %+v\ngot %+v", i, tc.desc, tc.infoMap, infos)
 		}
 	}
 }

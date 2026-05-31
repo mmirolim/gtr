@@ -2,15 +2,13 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/kr/pretty"
 )
 
 // test data
@@ -217,15 +215,15 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Add new file, math.go, geo.go, math_test.go",
 			setup: func() error {
-				err := ioutil.WriteFile(filePath("math.go"), mathgo, 0600)
+				err := os.WriteFile(filePath("math.go"), mathgo, 0600)
 				if err != nil {
 					return err
 				}
-				err = ioutil.WriteFile(filePath("geo.go"), geogo, 0600)
+				err = os.WriteFile(filePath("geo.go"), geogo, 0600)
 				if err != nil {
 					return err
 				}
-				return ioutil.WriteFile(filePath("math_test.go"), math_test_go, 0600)
+				return os.WriteFile(filePath("math_test.go"), math_test_go, 0600)
 			},
 			tearDown: func() error {
 				err := gitCmdRun("add", "math.go")
@@ -256,7 +254,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Change untracked file geo.go, add func Area",
 			setup: func() error {
-				return ioutil.WriteFile(filePath("geo.go"), geo_add_area, 0600)
+				return os.WriteFile(filePath("geo.go"), geo_add_area, 0600)
 			},
 			output: []Change{{"geo.go", "geo.go", 0, 0}},
 		},
@@ -275,11 +273,11 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Update file math.go with new func max with test",
 			setup: func() error {
-				err := ioutil.WriteFile(filePath("math.go"), mathgo_add_func, 0600)
+				err := os.WriteFile(filePath("math.go"), mathgo_add_func, 0600)
 				if err != nil {
 					return err
 				}
-				return ioutil.WriteFile(filePath("math_test.go"), math_test_go_test_max, 0600)
+				return os.WriteFile(filePath("math_test.go"), math_test_go_test_max, 0600)
 			},
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
@@ -290,7 +288,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Update file math.go, update func min",
 			setup: func() error {
-				return ioutil.WriteFile(filePath("math.go"), mathgo_update_min_func, 0600)
+				return os.WriteFile(filePath("math.go"), mathgo_update_min_func, 0600)
 			},
 			tearDown: func() error {
 				return gitCmdRun("commit", "-am", "changes")
@@ -304,7 +302,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Multiple updates to file math.go",
 			setup: func() error {
-				return ioutil.WriteFile(filePath("math.go"),
+				return os.WriteFile(filePath("math.go"),
 					mathgo_update_pkg_lvl_var_add_comment_change_func, 0600)
 			},
 			tearDown: func() error {
@@ -319,7 +317,7 @@ func TestGetDiff(t *testing.T) {
 		{
 			desc: "Change func name in file geo.go",
 			setup: func() error {
-				return ioutil.WriteFile(filePath("geo.go"), geo_area_func_rename, 0600)
+				return os.WriteFile(filePath("geo.go"), geo_area_func_rename, 0600)
 			},
 			output: []Change{{"geo.go", "geo.go", 8, 0}},
 		},
@@ -338,9 +336,8 @@ func TestGetDiff(t *testing.T) {
 			continue
 		}
 
-		diffs := pretty.Diff(tc.output, output)
-		if len(diffs) > 0 {
-			t.Errorf("case [%d] %s\nexpected %# v\ngot %# v", i, tc.desc, tc.output, output)
+		if !reflect.DeepEqual(tc.output, output) {
+			t.Errorf("case [%d] %s\nexpected %+v\ngot %+v", i, tc.desc, tc.output, output)
 		}
 	}
 }
@@ -390,15 +387,15 @@ func TestCommitChangesTask(t *testing.T) {
 			in:     "Tests PASS: TestA$",
 			cmdErr: nil, cmdSuccess: true,
 			setup: func() error {
-				_ = ioutil.WriteFile(filePath("math.go"), mathgo, 0600)
-				_ = ioutil.WriteFile(filePath("geo.go"), geogo, 0600)
-				return ioutil.WriteFile(filePath("math_test.go"), math_test_go, 0600)
+				_ = os.WriteFile(filePath("math.go"), mathgo, 0600)
+				_ = os.WriteFile(filePath("geo.go"), geogo, 0600)
+				return os.WriteFile(filePath("math_test.go"), math_test_go, 0600)
 			},
 			tearDown: func() error {
 				_ = gitCmdRun("add", "math.go", "math_test.go")
 				return gitCmdRun("commit", "-m", "add files")
 			},
-			commitCmdLine: "git -C /tmp/test_commit_changes_task commit -m 'auto_commit! Perimeter TestMin min sub'",
+			commitCmdLine: "git -C " + testDir + " commit -m 'auto_commit! Perimeter TestMin min sub'",
 			output:        "'auto_commit! Perimeter TestMin min sub'",
 			expectedErr:   nil,
 		},

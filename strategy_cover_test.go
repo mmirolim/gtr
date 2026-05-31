@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -265,7 +264,7 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 		{
 			desc: "Add func double in file_a.go",
 			setup: func() error {
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, "file_a.go"), fileAAddDouble, 0600)
 			},
 			tearDown: func() error {
@@ -282,7 +281,7 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 					testDivProf,
 				}
 				for i := 0; i < len(files); i += 2 {
-					err := ioutil.WriteFile(
+					err := os.WriteFile(
 						filepath.Join(testDir, ".gtr", string(files[i])),
 						files[i+1], 0600)
 					if err != nil {
@@ -296,7 +295,7 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 		{
 			desc: "Add test to Double",
 			setup: func() error {
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, "main_test.go"),
 					mainTestFileAddDouble, 0600)
 			},
@@ -308,13 +307,13 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 		{
 			desc: "Update mul func in file_a.go and sub in pkga/file_a.go",
 			setup: func() error {
-				err := ioutil.WriteFile(
+				err := os.WriteFile(
 					filepath.Join(testDir, "file_a.go"),
 					fileAChangeMul, 0600)
 				if err != nil {
 					return err
 				}
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, pkgAFileAPath),
 					pkgAfileAChangeSub, 0600)
 			},
@@ -327,7 +326,7 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 		{
 			desc: "Update in pkga",
 			setup: func() error {
-				return ioutil.WriteFile(
+				return os.WriteFile(
 					filepath.Join(testDir, pkgATestFileAPath),
 					pkgATestFileUpdate, 0600)
 			},
