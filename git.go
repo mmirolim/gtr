@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
-	"log"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -67,10 +67,10 @@ func (g *GitCMD) Diff(ctx context.Context) ([]Change, error) {
 func CommitChanges(
 	workDir string,
 	newCmd CommandCreator,
-) func(*log.Logger, context.Context) (string, error) {
+) func(*slog.Logger, context.Context, *TaskContext) (string, error) {
 	gitcmd := NewGitCMD(workDir)
-	return func(log *log.Logger, ctx context.Context) (string, error) {
-		in := ctx.Value(prevTaskOutputKey).(string)
+	return func(log *slog.Logger, ctx context.Context, tc *TaskContext) (string, error) {
+		in := tc.PrevTaskOutput
 		if !strings.HasPrefix(in, "Tests PASS:") {
 			return "", errors.New("nothing to commit")
 		}

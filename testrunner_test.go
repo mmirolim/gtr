@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"testing"
 )
@@ -64,7 +64,7 @@ func TestGoTestRunnerRun(t *testing.T) {
 			cmdSuccess:  true,
 			tests:       []string{"module/pkga/pkgb.TestZ"},
 			subTests:    []string{"b1"},
-			err:         errors.New("strategy error injected error"),
+			err:         errors.New("strategy error: injected error"),
 		},
 		{
 			desc:       "Tests failed",
@@ -83,7 +83,7 @@ func TestGoTestRunnerRun(t *testing.T) {
 			output:          "Tests PASS: TestZ$/(group)",
 		},
 	}
-	logger := log.New(os.Stdout, "TestGoTestRunnerRun:", log.Ltime)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var ds dummyStrategy
 	for i, tc := range cases {
 		ds.err = tc.strategyErr
@@ -93,7 +93,7 @@ func TestGoTestRunnerRun(t *testing.T) {
 		ds.coverageEnabled = tc.coverageEnabled
 		mockCmd := NewMockCommand(nil, tc.cmdSuccess)
 		runner := NewGoTestRunner(&ds, mockCmd.New, "", logger)
-		out, err := runner.Run(context.TODO())
+		out, err := runner.Run(context.TODO(), nil)
 
 		if isUnexpectedErr(t, i, tc.desc, tc.err, err) {
 			continue

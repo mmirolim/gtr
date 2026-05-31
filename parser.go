@@ -8,12 +8,16 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/mod/modfile"
 )
 
 // Change of file lines
@@ -273,11 +277,7 @@ func splitStr(str, sep string) []string {
 
 // mapStrToSlice returns slice of keys from map
 func mapStrToSlice(set map[string]bool) []string {
-	var out []string
-	for k := range set {
-		out = append(out, k)
-	}
-	return out
+	return slices.Collect(maps.Keys(set))
 }
 
 // parseFlags parses provided args and returns config
@@ -336,6 +336,8 @@ LOOP:
 			if err != nil {
 				return config{}, fmt.Errorf("-auto-commit invalid value %v", nextArg)
 			}
+		case "-base-ref":
+			cfg.baseRef = nextArg
 		case "-args":
 			cfg.argsToTestBinary = strings.Join(args[i:], " ")
 			break LOOP
@@ -365,7 +367,7 @@ func isValidStrategy(strategy string) bool {
 }
 
 // getModuleName returns module name
-// in gived workDir
+// in given workDir
 func getModuleName(workDir string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(workDir, "go.mod"))
 	if err != nil {
@@ -381,15 +383,11 @@ func getModuleName(workDir string) (string, error) {
 		return filepath.Rel(filepath.Join(gopath, "src"), dir)
 	}
 
-	var line []byte
-	for i := 0; i < len(data); i++ {
-		if data[i] == '\n' {
-			break
-		}
-		line = data[0 : i+1]
+	f, err := modfile.Parse("go.mod", data, nil)
+	if err != nil {
+		return "", fmt.Errorf("parsing go.mod: %w", err)
 	}
-
-	return strings.Split(string(line), " ")[1], nil
+	return f.Module.Mod.Path, nil
 }
 
 var CoverProflineRe = regexp.MustCompile(`^(.+):([0-9]+).([0-9]+),([0-9]+).([0-9]+) ([0-9]+) ([0-9]+)$`)

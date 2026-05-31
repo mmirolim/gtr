@@ -22,9 +22,10 @@ func TestDesktopNotificator(t *testing.T) {
 	}
 
 	// Task should be cancelable
-	ctx, _ := context.WithDeadline(context.Background(), time.Now())
-	ctx = context.WithValue(ctx, prevTaskOutputKey, "prev task msg")
-	_, err := notifier.Run(ctx)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now())
+	defer cancel()
+	tc := &TaskContext{PrevTaskOutput: "prev task msg"}
+	_, err := notifier.Run(ctx, tc)
 	if err == nil {
 		t.Error("expected not nil error")
 		return

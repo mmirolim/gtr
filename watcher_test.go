@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestWatcherAddDirs(t *testing.T) {
 			_ = os.RemoveAll(testDir)
 		}
 	}()
-	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	var watcher *Watcher
 	var err error
 	cases := []struct {
@@ -159,10 +160,11 @@ func TestWatcherRunTasks(t *testing.T) {
 
 	var watcher *Watcher
 	var err error
+	var mu sync.Mutex
 	var taskOutput string
 	var taskErr error
 
-	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	taskCanceledErr := errors.New("task canceled")
 	cases := []struct {
 		desc               string
@@ -181,10 +183,12 @@ func TestWatcherRunTasks(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				task1 := NewTask("task1", func(log *log.Logger, ctx context.Context) (string, error) {
+				task1 := NewTask("task1", func(log *slog.Logger, ctx context.Context, tc *TaskContext) (string, error) {
 					<-ctx.Done()
+					mu.Lock()
 					taskErr = taskCanceledErr
-					return taskErr.Error(), taskErr
+					mu.Unlock()
+					return taskCanceledErr.Error(), taskCanceledErr
 
 				}, logger)
 				watcher, _ = NewWatcher(testDir, []Task{task1}, 0, nil, nil, logger)
@@ -194,8 +198,10 @@ func TestWatcherRunTasks(t *testing.T) {
 				return os.WriteFile(filepath.Join(testDir, "file.go"), nil, 0600)
 			},
 			tearDown: func() error {
+				mu.Lock()
 				taskErr = nil
 				taskOutput = ""
+				mu.Unlock()
 				return nil
 			},
 			expectedTaskOutput: "", expectedTaskErr: taskCanceledErr,
@@ -203,22 +209,20 @@ func TestWatcherRunTasks(t *testing.T) {
 		{
 			desc: "Run multiple tasks in order file > task1 > task2",
 			setup: func() error {
-				task1 := NewTask("task1", func(log *log.Logger, ctx context.Context) (string, error) {
-					fname, ok := ctx.Value(changedFileNameKey).(string)
-					if !ok {
-						return "", taskCanceledErr
-					}
-					taskOutput = fname + ">task1"
-					return taskOutput, nil
+				task1 := NewTask("task1", func(log *slog.Logger, ctx context.Context, tc *TaskContext) (string, error) {
+					mu.Lock()
+					taskOutput = tc.ChangedFile + ">task1"
+					out := taskOutput
+					mu.Unlock()
+					return out, nil
 
 				}, logger)
-				task2 := NewTask("task2", func(log *log.Logger, ctx context.Context) (string, error) {
-					prevOut, ok := ctx.Value(prevTaskOutputKey).(string)
-					if !ok {
-						return "", taskCanceledErr
-					}
-					taskOutput = prevOut + ">task2"
-					return taskOutput, nil
+				task2 := NewTask("task2", func(log *slog.Logger, ctx context.Context, tc *TaskContext) (string, error) {
+					mu.Lock()
+					taskOutput = tc.PrevTaskOutput + ">task2"
+					out := taskOutput
+					mu.Unlock()
+					return out, nil
 
 				}, logger)
 				watcher, _ = NewWatcher(testDir, []Task{task1, task2}, 0, nil, nil, logger)
@@ -228,8 +232,10 @@ func TestWatcherRunTasks(t *testing.T) {
 				return os.WriteFile(filepath.Join(testDir, "file.go"), nil, 0600)
 			},
 			tearDown: func() error {
+				mu.Lock()
 				taskErr = nil
 				taskOutput = ""
+				mu.Unlock()
 				return nil
 			},
 			expectedTaskOutput: filepath.Join(testDir, "file.go>task1>task2"),
@@ -238,7 +244,7 @@ func TestWatcherRunTasks(t *testing.T) {
 		{
 			desc: "Do not trigger task on none go files",
 			setup: func() error {
-				gotask := NewTask("gotask", func(log *log.Logger, ctx context.Context) (string, error) {
+				gotask := NewTask("gotask", func(log *slog.Logger, ctx context.Context, tc *TaskContext) (string, error) {
 					return "should not run", errors.New("should not run")
 				}, logger)
 				watcher, _ = NewWatcher(testDir, []Task{gotask}, 0, nil, nil, logger)
@@ -248,8 +254,10 @@ func TestWatcherRunTasks(t *testing.T) {
 				return os.WriteFile(filepath.Join(testDir, "file.js"), nil, 0600)
 			},
 			tearDown: func() error {
+				mu.Lock()
 				taskErr = nil
 				taskOutput = ""
+				mu.Unlock()
 				return nil
 			},
 			expectedTaskOutput: "", expectedTaskErr: nil,
@@ -257,14 +265,17 @@ func TestWatcherRunTasks(t *testing.T) {
 		{
 			desc: "Add new directory to a watch list",
 			setup: func() error {
-				task := NewTask("task", func(log *log.Logger, ctx context.Context) (string, error) {
-					fname := ctx.Value(changedFileNameKey).(string)
+				task := NewTask("task", func(log *slog.Logger, ctx context.Context, tc *TaskContext) (string, error) {
+					fname := tc.ChangedFile
 
 					_, file := filepath.Split(fname)
 					if file != "file_in_new_dir.go" {
-						return "unexpected file", taskCanceledErr
+						return "", errors.New("expected file_in_new_dir.go, got " + file)
 					}
+
+					mu.Lock()
 					taskOutput = "OK"
+					mu.Unlock()
 					return taskOutput, nil
 				}, logger)
 				watcher, _ = NewWatcher(testDir, []Task{task}, 0, nil, nil, logger)
@@ -280,8 +291,10 @@ func TestWatcherRunTasks(t *testing.T) {
 					filepath.Join(newDir, "file_in_new_dir.go"), nil, 0600)
 			},
 			tearDown: func() error {
+				mu.Lock()
 				taskErr = nil
 				taskOutput = ""
+				mu.Unlock()
 				return nil
 			},
 			expectedTaskOutput: "OK", expectedTaskErr: nil,
@@ -289,9 +302,12 @@ func TestWatcherRunTasks(t *testing.T) {
 		{
 			desc: "Remove deleted directory from a watch list",
 			setup: func() error {
-				task := NewTask("task_return_dirs", func(log *log.Logger, ctx context.Context) (string, error) {
+				task := NewTask("task_return_dirs", func(log *slog.Logger, ctx context.Context, tc *TaskContext) (string, error) {
+					mu.Lock()
 					taskOutput = strconv.Itoa(len(watcher.dirs))
-					return taskOutput, nil
+					out := taskOutput
+					mu.Unlock()
+					return out, nil
 				}, logger)
 				watcher, _ = NewWatcher(testDir, []Task{task}, 0, nil, nil, logger)
 				_ = watcher.addDirs()
@@ -328,13 +344,17 @@ func TestWatcherRunTasks(t *testing.T) {
 		}
 		// wait task watcher runTasks returns
 		time.Sleep(time.Millisecond)
-		if isUnexpectedErr(t, i, tc.desc, tc.expectedTaskErr, taskErr) {
+		mu.Lock()
+		currentTaskErr := taskErr
+		currentTaskOutput := taskOutput
+		mu.Unlock()
+		if isUnexpectedErr(t, i, tc.desc, tc.expectedTaskErr, currentTaskErr) {
 			continue
 		}
 
-		if tc.expectedTaskOutput != taskOutput {
+		if tc.expectedTaskOutput != currentTaskOutput {
 			t.Errorf("case [%d] %s\nexpected %+v\ngot %+v",
-				i, tc.desc, tc.expectedTaskOutput, taskOutput)
+				i, tc.desc, tc.expectedTaskOutput, currentTaskOutput)
 		}
 	}
 }

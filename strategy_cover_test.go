@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -229,7 +229,7 @@ cover-strategy-test-run/main.go:14.26,16.4 1 0
 		"main.go": mainFile, "file_a.go": fileA, "main_test.go": mainTestFile,
 		pkgAFileAPath: pkgAFileA, pkgATestFileAPath: pkgATestFile,
 	}
-	logger := log.New(os.Stdout, "gtr-cover-strategy-test:", log.Ltime)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	setup := func() *CoverStrategy {
 		setupTestGitDir(t,
 			testDir, files,

@@ -30,9 +30,8 @@ func (n *DesktopNotificator) ID() string {
 }
 
 // Run implements Task interface
-func (n *DesktopNotificator) Run(ctx context.Context) (string, error) {
-	in := ctx.Value(prevTaskOutputKey).(string)
-	return in, n.Send(ctx, in)
+func (n *DesktopNotificator) Run(ctx context.Context, tc *TaskContext) (string, error) {
+	return tc.PrevTaskOutput, n.Send(ctx, tc.PrevTaskOutput)
 }
 
 // Send desktop notification
@@ -55,7 +54,7 @@ func (n *DesktopNotificator) Send(ctx context.Context, msg string) error {
 
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("Desktop notification error %v", err)
+		return fmt.Errorf("desktop notification: %w", err)
 	}
 	return nil
 }

@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"runtime"
 	"sort"
@@ -24,7 +24,7 @@ type GoTestRunner struct {
 	strategy Strategy
 	cmd      CommandCreator
 	args     string
-	log      *log.Logger
+	log      *slog.Logger
 }
 
 // NewGoTestRunner creates test runner
@@ -36,7 +36,7 @@ func NewGoTestRunner(
 	strategy Strategy,
 	cmd CommandCreator,
 	args string,
-	logger *log.Logger,
+	logger *slog.Logger,
 ) *GoTestRunner {
 	return &GoTestRunner{
 		strategy: strategy,
@@ -53,13 +53,13 @@ func (tr *GoTestRunner) ID() string {
 
 // Run method implements Task interface
 // runs go tests
-func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
+func (tr *GoTestRunner) Run(ctx context.Context, tc *TaskContext) (string, error) {
 	runAll, tests, subTests, err := tr.strategy.TestsToRun(ctx)
 	if err != nil {
 		if err == ErrBuildFailed {
 			return "Build Failed", nil
 		}
-		return "", fmt.Errorf("strategy error %v", err)
+		return "", fmt.Errorf("strategy error: %w", err)
 	}
 	if len(tests) == 0 && len(subTests) == 0 {
 		return "No test found to run", nil
@@ -110,7 +110,7 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 			testParams = append(testParams, tr.args)
 		}
 		cmd = tr.cmd(ctx, "go", testParams...)
-		tr.log.Println(">>", strings.Join(cmd.GetArgs(), " "))
+		tr.log.Info("running tests", "cmd", strings.Join(cmd.GetArgs(), " "))
 
 		cmd.SetStdout(os.Stdout)
 		cmd.SetStderr(os.Stderr)
@@ -147,7 +147,7 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 					testParams = append(testParams, tr.args)
 				}
 				cmd = tr.cmd(ctx, "go", testParams...)
-				tr.log.Println(">>", strings.Join(cmd.GetArgs(), " "))
+				tr.log.Info("running tests", "cmd", strings.Join(cmd.GetArgs(), " "))
 
 				cmd.SetStdout(os.Stdout)
 				cmd.SetStderr(os.Stderr)
@@ -163,10 +163,10 @@ func (tr *GoTestRunner) Run(ctx context.Context) (string, error) {
 
 	if cmd.Success() {
 		msg = "Tests PASS: " + testsFormated
-		tr.log.Println("\033[32mTests PASS\033[39m")
+		tr.log.Info("\033[32mTests PASS\033[39m")
 	} else {
 		msg = "Tests FAIL: " + testsFormated
-		tr.log.Println("\033[31mTests FAIL\033[39m")
+		tr.log.Error("\033[31mTests FAIL\033[39m")
 	}
 	return msg, nil
 }
@@ -188,7 +188,7 @@ func (tr *GoTestRunner) joinTestAndSubtest(tests, subTests []string) string {
 	return out
 }
 
-func logStrList(log *log.Logger, title string, tests []string, toSort bool) {
+func logStrList(log *slog.Logger, title string, tests []string, toSort bool) {
 	var out []string
 	if toSort {
 		out = make([]string, len(tests))
@@ -198,10 +198,5 @@ func logStrList(log *log.Logger, title string, tests []string, toSort bool) {
 		out = tests
 	}
 
-	log.Println("=============") // output for debug
-	log.Println(title)
-	for i := range out {
-		log.Printf("-> %+v\n", out[i]) // output for debug
-	}
-	log.Println("=============")
+	log.Info(title, "tests", out)
 }

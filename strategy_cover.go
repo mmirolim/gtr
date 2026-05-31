@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,10 +20,10 @@ type CoverStrategy struct {
 	runInit  bool
 	workDir  string
 	gitCmd   *GitCMD
-	log      *log.Logger
+	log      *slog.Logger
 }
 
-func NewCoverStrategy(runInit bool, workDir string, logger *log.Logger) *CoverStrategy {
+func NewCoverStrategy(runInit bool, workDir string, logger *slog.Logger) *CoverStrategy {
 	return &CoverStrategy{
 		firstRun: true,
 		runInit:  runInit,
@@ -60,10 +60,10 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 
 	if cs.firstRun && cs.runInit {
 		// run all tests for first time
-		cs.log.Println("initialize: run all tests\nfinding all tests...")
+		cs.log.Info("initialize: run all tests, finding all tests...")
 		testsList, err = findAllTestInDir(ctx, moduleName, cs.workDir)
 		if err != nil {
-			cs.log.Println("Build Failed")
+			cs.log.Error("build failed")
 			return
 		}
 		cs.firstRun = false
@@ -74,7 +74,7 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 	// find file blocks changed
 	changes, err := cs.gitCmd.Diff(ctx)
 	if err != nil {
-		err = fmt.Errorf("gitCmd.Diff error %s", err)
+		err = fmt.Errorf("gitCmd.Diff: %w", err)
 		return
 	}
 	// filter out none go files
@@ -104,14 +104,14 @@ func (cs *CoverStrategy) TestsToRun(ctx context.Context) (
 			fmt.Fprintln(os.Stderr, "\n=======\033[31m Build Failed \033[39m=======")
 			fmt.Fprintf(os.Stderr, "%s", err)
 			fmt.Fprintln(os.Stderr, "\n============================")
-			err = fmt.Errorf("getFileInfo error %s", err)
+			err = fmt.Errorf("getFileInfo: %w", err)
 			return
 		}
 		fileInfos[change.fpath] = info
 	}
 	changedBlocks, cerr := changesToFileBlocks(changes, fileInfos)
 	if cerr != nil {
-		err = fmt.Errorf("changesToFileBlocks error %s", cerr)
+		err = fmt.Errorf("changesToFileBlocks: %w", cerr)
 		return
 	}
 

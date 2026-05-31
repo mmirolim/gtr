@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,18 +13,16 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// TaskCtxKey type to use for keys in task context
-type TaskCtxKey string
-
-const (
-	changedFileNameKey TaskCtxKey = "changed_file_name_key"
-	prevTaskOutputKey  TaskCtxKey = "prev_task_output_key"
-)
+// TaskContext carries data between pipeline tasks.
+type TaskContext struct {
+	ChangedFile    string
+	PrevTaskOutput string
+}
 
 // Task interface for Watcher to execute
 type Task interface {
 	ID() string
-	Run(ctx context.Context) (msg string, err error)
+	Run(ctx context.Context, tc *TaskContext) (msg string, err error)
 }
 
 // Watcher watches recursively directories and
@@ -37,7 +36,7 @@ type Watcher struct {
 	excludeFilePrefixes []string
 	excludeDirs         []string
 	quit                chan bool
-	log                 *log.Logger
+	log                 *slog.Logger
 }
 
 // NewWatcher returns constructed Watcher
@@ -47,7 +46,7 @@ func NewWatcher(
 	delay int,
 	excludeFilePrefixes []string,
 	excludeDirs []string,
-	logger *log.Logger,
+	logger *slog.Logger,
 ) (*Watcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	return &Watcher{
@@ -65,7 +64,7 @@ func NewWatcher(
 
 // Run watcher, blocks
 func (w *Watcher) Run() error {
-	w.log.Println("watcher running...")
+	w.log.Info("watcher running...")
 	// watch directories recursively
 	err := w.addDirs()
 	if err != nil {
@@ -152,7 +151,7 @@ LOOP:
 			if info.IsDir() {
 				err := w.add(e.Name)
 				if err != nil {
-					w.log.Printf("watcher add unexpected err %+v\n", err) // output for debug
+					w.log.Warn("watcher add unexpected error", "err", err)
 				}
 				continue LOOP
 			}
@@ -163,36 +162,36 @@ LOOP:
 			// for git index lock in current dir, if some other process
 			// use git
 			time.Sleep(w.delay / 10)
-			w.log.Println("File changed:", e.Name)
+			w.log.Info("file changed", "file", e.Name)
 			lastModFile = e.Name
 			lastModTime = time.Now()
 			if cancel != nil {
 				cancel()
 			}
 
-			ctx, cancel = context.WithCancel(
-				context.WithValue(context.Background(), changedFileNameKey, e.Name))
+			ctx, cancel = context.WithCancel(context.Background())
+			tc := &TaskContext{ChangedFile: e.Name}
 			// do not block loop
 			go func() {
 				var output string
 				var err error
 				// run tasks in provided sequence
 				for _, task := range w.tasks {
-					ctx = context.WithValue(ctx, prevTaskOutputKey, output)
-					w.log.Printf("Run task.ID %+v\n", task.ID()) // output for debug
-					output, err = task.Run(ctx)
+					tc.PrevTaskOutput = output
+					w.log.Info("running task", "task_id", task.ID())
+					output, err = task.Run(ctx, tc)
 					if err != nil {
-						w.log.Printf("stop pipeline Task.ID: %s returned\n", task.ID()) // output for debug
+						w.log.Info("pipeline stopped", "task_id", task.ID())
 						break
 					}
 				}
 				// add loging
-				w.log.Println("tasks executed")
+				w.log.Info("tasks executed")
 			}()
 
 		case err := <-w.wt.Errors:
 			if err != nil {
-				w.log.Println("Error:", err)
+				w.log.Error("watcher error", "err", err)
 			}
 		}
 	}
@@ -206,7 +205,7 @@ func (w *Watcher) add(path string) error {
 	// add watcher to dir
 	err := w.wt.Add(path)
 	if err != nil {
-		w.log.Printf("could not add dir to watcher %s\n", err)
+			w.log.Warn("could not add dir to watcher", "err", err)
 		return filepath.SkipDir
 	}
 	w.dirs[path] = true
@@ -216,11 +215,11 @@ func (w *Watcher) add(path string) error {
 // recursively adds directories to a watcher
 func (w *Watcher) addDirs() error {
 	// walk current directory and if there is other directory add watcher to it
-	err := filepath.Walk(w.workDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(w.workDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !d.IsDir() {
 			return nil
 		}
 		err = w.add(path)
@@ -241,8 +240,8 @@ func (w *Watcher) Stop() error {
 
 // NewTask adaptor for func to run as the Task
 func NewTask(id string,
-	fn func(*log.Logger, context.Context) (string, error),
-	logger *log.Logger,
+	fn func(*slog.Logger, context.Context, *TaskContext) (string, error),
+	logger *slog.Logger,
 ) Task {
 	return taskAdapter{id, fn, logger}
 }
@@ -253,14 +252,14 @@ var _ Task = (*taskAdapter)(nil)
 // works as container for func
 type taskAdapter struct {
 	id  string
-	fn  func(*log.Logger, context.Context) (string, error)
-	log *log.Logger
+	fn  func(*slog.Logger, context.Context, *TaskContext) (string, error)
+	log *slog.Logger
 }
 
 func (ta taskAdapter) ID() string {
 	return ta.id
 }
 
-func (ta taskAdapter) Run(ctx context.Context) (string, error) {
-	return ta.fn(ta.log, ctx)
+func (ta taskAdapter) Run(ctx context.Context, tc *TaskContext) (string, error) {
+	return ta.fn(ta.log, ctx, tc)
 }

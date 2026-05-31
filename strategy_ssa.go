@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,11 +33,21 @@ type SSAStrategy struct {
 	analysis string
 	workDir  string
 	gitCmd   *GitCMD
-	log      *log.Logger
+	log      *slog.Logger
+	cache    *ssaCache
+}
+
+// ssaCache stores the SSA analysis results for reuse
+type ssaCache struct {
+	hash          string // content hash of all Go files
+	moduleName    string
+	program       *ssa.Program
+	filePathToPkg map[string]string
+	allPkgs       []*ssa.Package
 }
 
 // NewSSAStrategy returns strategy
-func NewSSAStrategy(analysis, workDir string, logger *log.Logger) *SSAStrategy {
+func NewSSAStrategy(analysis, workDir string, logger *slog.Logger) *SSAStrategy {
 	return &SSAStrategy{
 		analysis: analysis,
 		workDir:  workDir,
@@ -55,7 +68,7 @@ func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 	runAll bool, testsList, subTestsList []string, err error) {
 	changes, err := ss.gitCmd.Diff(ctx)
 	if err != nil {
-		err = fmt.Errorf("gitCmd.Diff error %s", err)
+		err = fmt.Errorf("gitCmd.Diff: %w", err)
 		return
 	}
 	// filter out none go files
@@ -85,21 +98,45 @@ func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 			fmt.Fprintln(os.Stderr, "\n=======\033[31m Build Failed \033[39m=======")
 			fmt.Fprintf(os.Stderr, "%s", err)
 			fmt.Fprintln(os.Stderr, "\n============================")
-			err = fmt.Errorf("getFileInfo error %s", err)
+			err = fmt.Errorf("getFileInfo: %w", err)
 			return
 		}
 		fileInfos[change.fpath] = info
 	}
 	changedBlocks, cerr := changesToFileBlocks(changes, fileInfos)
 	if cerr != nil {
-		err = fmt.Errorf("changesToFileBlocks error %s", cerr)
+		err = fmt.Errorf("changesToFileBlocks: %w", cerr)
 		return
 	}
 
-	moduleName, program, filePathToPkg, allPkgs, analyzeErr := analyzeGoCode(ctx, ss.workDir)
-	if analyzeErr != nil {
-		err = ErrBuildFailed
-		return
+	// Check SSA cache validity
+	hash := ss.goSourceHash()
+	var moduleName string
+	var program *ssa.Program
+	var filePathToPkg map[string]string
+	var allPkgs []*ssa.Package
+
+	if ss.cache != nil && ss.cache.hash == hash {
+		ss.log.Info("SSA cache hit, reusing call graph")
+		moduleName = ss.cache.moduleName
+		program = ss.cache.program
+		filePathToPkg = ss.cache.filePathToPkg
+		allPkgs = ss.cache.allPkgs
+	} else {
+		ss.log.Info("SSA cache miss, rebuilding")
+		var analyzeErr error
+		moduleName, program, filePathToPkg, allPkgs, analyzeErr = analyzeGoCode(ctx, ss.workDir)
+		if analyzeErr != nil {
+			err = ErrBuildFailed
+			return
+		}
+		ss.cache = &ssaCache{
+			hash:          hash,
+			moduleName:    moduleName,
+			program:       program,
+			filePathToPkg: filePathToPkg,
+			allPkgs:       allPkgs,
+		}
 	}
 
 	// TODO test with libraries without entry point
@@ -157,7 +194,7 @@ func (ss *SSAStrategy) TestsToRun(ctx context.Context) (
 		}
 	}
 	if len(changedNodes) == 0 {
-		ss.log.Println("no updated nodes found")
+		ss.log.Info("no updated nodes found")
 		return
 	}
 	allTests := getAllTestsInModule(moduleName, graph)
@@ -368,4 +405,33 @@ func getAllTestsInModule(moduleName string, graph *callgraph.Graph) (
 
 	}
 	return
+}
+
+// goSourceHash computes a SHA-256 hash of all .go files in the workdir
+// Used for SSA cache invalidation
+func (ss *SSAStrategy) goSourceHash() string {
+	h := sha256.New()
+	_ = filepath.WalkDir(ss.workDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if name == "vendor" || name == "node_modules" || name == ".git" || name[0] == '.' {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(name, ".go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		h.Write([]byte(path))
+		h.Write(data)
+		return nil
+	})
+	return hex.EncodeToString(h.Sum(nil))
 }

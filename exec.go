@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"os/exec"
-	"strings"
 )
 
 // CommandExecutor interface for os command execution
@@ -60,64 +59,4 @@ func (c *OsCommand) SetStderr(wr io.Writer) {
 // SetEnv setter
 func (c *OsCommand) SetEnv(env []string) {
 	c.Cmd.Env = env
-}
-
-var _ CommandExecutor = (*MockCommand)(nil)
-
-// MockCommand mock executor for testing
-// implements CommandExecutor interface
-type MockCommand struct {
-	bin            string
-	args           []string
-	env            []string
-	stdOut, stdErr io.Writer
-	success        bool
-	error          error
-	execLog        []string
-}
-
-// NewMockCommand returns preconfigured command
-// with errors and success status
-func NewMockCommand(err error, success bool) MockCommand {
-	return MockCommand{
-		error: err, success: success,
-	}
-}
-
-// New --
-func (c *MockCommand) New(ctx context.Context, bin string, args ...string) CommandExecutor {
-	c.bin = bin
-	c.args = args
-	c.execLog = append(c.execLog, bin+" "+strings.Join(args, " "))
-	return c
-}
-
-// GetArgs --
-func (c *MockCommand) GetArgs() []string {
-	return append([]string{c.bin}, c.args...)
-}
-
-// Run --
-func (c *MockCommand) Run() error {
-	return c.error
-}
-
-// SetStdout --
-func (c *MockCommand) SetStdout(wr io.Writer) {
-	c.stdOut = wr
-}
-
-// SetStderr --
-func (c *MockCommand) SetStderr(wr io.Writer) {
-	c.stdErr = wr
-}
-
-// SetEnv --
-func (c *MockCommand) SetEnv(env []string) {
-	c.env = env
-}
-
-// Success --
-func (c *MockCommand) Success() bool {
-	return c.success
 }

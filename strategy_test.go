@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -358,7 +358,7 @@ func TestSSAStrategyTestsToRun(t *testing.T) {
 		pkgAFilePath: pkgAFile, pkgBFilePath: pkgBFile,
 		pkgATestFilePath: pkgATestFile,
 	}
-	logger := log.New(os.Stdout, "gtr-test:", log.Ltime)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	setup := func() *SSAStrategy {
 		setupTestGitDir(t,
 			testDir, files,
